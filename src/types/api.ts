@@ -186,6 +186,13 @@ export interface TransitionRule {
   updatedAt: string;
 }
 
+export interface CreateTransitionRuleRequest {
+  ruleName: string;
+  ruleDefinition: Record<string, unknown>;
+  evaluationOrder?: number;
+  schemaFields?: FormSchemaField[];
+}
+
 export interface FormSchemaField {
   key: string;
   type: string;

@@ -1,7 +1,7 @@
 /**
  * WorkflowDesignerPage — Visual workflow designer with states, transitions, rules, and ReactFlow diagram.
  */
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -17,7 +17,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { apiClient } from "@/lib/api-client";
-import { unwrap, unwrapList } from "@/lib/api-helpers";
+import { unwrap } from "@/lib/api-helpers";
 import { queryKeys } from "@/lib/query-keys";
 import { useWorkflowDesignerStore } from "@/stores/workflow-designer-store";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
@@ -29,26 +29,24 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import {
-  Collapsible, CollapsibleContent, CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
-import {
-  AlertTriangle, ChevronDown, Edit, Plus, Rocket, Trash2, ArrowRight, Shield, Settings2,
-} from "lucide-react";
+import { AlertTriangle, ChevronDown, Edit, Plus, Rocket, Trash2, ArrowRight, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/utils/error-messages";
 import { formatDateTime } from "@/utils/format-date";
 import type {
-  WorkflowDefinition, WorkflowState, WorkflowTransition,
-  TransitionRule, FormSchemaField, Role, WorkflowVersion, RuleMetadata,
+  WorkflowDefinition,
+  WorkflowState,
+  WorkflowTransition,
+  TransitionRule,
+  FormSchemaField,
+  Role,
+  WorkflowVersion,
+  RuleMetadata,
+  CreateTransitionRuleRequest,
 } from "@/types/api";
 
 /** Color palette for state nodes */
@@ -56,9 +54,37 @@ const stateColors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec
 
 /** Expression operators from rule metadata */
 const EXPRESSION_OPERATORS = [
-  "equal", "notEqual", "lessThan", "lessThanInclusive",
-  "greaterThan", "greaterThanInclusive", "in", "notIn", "contains", "doesNotContain",
+  "equal",
+  "notEqual",
+  "lessThan",
+  "lessThanInclusive",
+  "greaterThan",
+  "greaterThanInclusive",
+  "in",
+  "notIn",
+  "contains",
+  "doesNotContain",
 ];
+
+const SCHEMA_FIELD_TYPES = ["string", "number", "boolean"] as const;
+
+const normalizePayloadFieldKey = (path: string) => {
+  const trimmed = path.trim();
+  if (!trimmed) return "";
+
+  if (trimmed.startsWith("$.")) return trimmed.slice(2).trim();
+  if (trimmed.startsWith("$")) return trimmed.slice(1).replace(/^\./, "").trim();
+  return trimmed.replace(/^\./, "").trim();
+};
+
+const formatSchemaFieldLabel = (key: string) =>
+  key
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 
 interface ConditionRow {
   fact: string;
@@ -102,43 +128,59 @@ export default function WorkflowDesignerPage() {
   const [ruleOrder, setRuleOrder] = useState(0);
   const [ruleType, setRuleType] = useState<"expression" | "custom">("expression");
   const [logicalOp, setLogicalOp] = useState<"all" | "any">("all");
-  const [conditions, setConditions] = useState<ConditionRow[]>([{ fact: "", path: "", operator: "equal", value: "" }]);
+  const [conditions, setConditions] = useState<ConditionRow[]>([
+    { fact: "", path: "", operator: "equal", value: "" },
+  ]);
   const [customStrategy, setCustomStrategy] = useState("");
   const [customParams, setCustomParams] = useState("{}");
+  const [payloadSchemaFields, setPayloadSchemaFields] = useState<FormSchemaField[]>([]);
   const [rulePreviewOpen, setRulePreviewOpen] = useState(false);
 
   // Fetch definition
   const { data: defData, isLoading: defLoading } = useQuery({
     queryKey: queryKeys.workflowDefinitions.detail(id!),
-    queryFn: () => apiClient.get(`/api/v1/workflow-definitions/${id}`).then((r) => unwrap<WorkflowDefinition>(r)),
+    queryFn: () =>
+      apiClient.get(`/api/v1/workflow-definitions/${id}`).then((r) => unwrap<WorkflowDefinition>(r)),
     enabled: !!id,
   });
 
   // Fetch states
   const { data: statesData, isLoading: statesLoading } = useQuery({
     queryKey: queryKeys.workflowDefinitions.states(id!),
-    queryFn: () => apiClient.get(`/api/v1/workflow-definitions/${id}/states?page=1&limit=100`).then((r) => ({ items: r.data.data as WorkflowState[], count: r.data.count })),
+    queryFn: () =>
+      apiClient
+        .get(`/api/v1/workflow-definitions/${id}/states?page=1&limit=100`)
+        .then((r) => ({ items: r.data.data as WorkflowState[], count: r.data.count })),
     enabled: !!id,
   });
 
   // Fetch transitions
   const { data: transData, isLoading: transLoading } = useQuery({
     queryKey: queryKeys.workflowDefinitions.transitions(id!),
-    queryFn: () => apiClient.get(`/api/v1/workflow-definitions/${id}/transitions?page=1&limit=100`).then((r) => ({ items: r.data.data as WorkflowTransition[], count: r.data.count })),
+    queryFn: () =>
+      apiClient
+        .get(`/api/v1/workflow-definitions/${id}/transitions?page=1&limit=100`)
+        .then((r) => ({ items: r.data.data as WorkflowTransition[], count: r.data.count })),
     enabled: !!id,
   });
 
   // Fetch form schema
   const { data: schemaData } = useQuery({
     queryKey: queryKeys.workflowDefinitions.formSchema(id!),
-    queryFn: () => apiClient.get(`/api/v1/workflow-definitions/${id}/instance-form-schema`).then((r) => unwrap<{ fields: FormSchemaField[] }>(r)),
+    queryFn: () =>
+      apiClient
+        .get(`/api/v1/workflow-definitions/${id}/instance-form-schema`)
+        .then((r) => unwrap<{ fields: FormSchemaField[] }>(r)),
     enabled: !!id,
   });
 
   // Fetch versions
   const { data: versionsData } = useQuery({
     queryKey: queryKeys.workflowDefinitions.versions(id!),
-    queryFn: () => apiClient.get(`/api/v1/workflow-definitions/${id}/versions`).then((r) => ({ items: r.data.data as WorkflowVersion[], count: r.data.count })),
+    queryFn: () =>
+      apiClient
+        .get(`/api/v1/workflow-definitions/${id}/versions`)
+        .then((r) => ({ items: r.data.data as WorkflowVersion[], count: r.data.count })),
     enabled: !!id,
   });
 
@@ -158,7 +200,10 @@ export default function WorkflowDesignerPage() {
   // Fetch rules for expanded transition
   const { data: rulesData, isLoading: rulesLoading } = useQuery({
     queryKey: queryKeys.workflowDefinitions.rules(id!, expandedTransId!),
-    queryFn: () => apiClient.get(`/api/v1/workflow-definitions/${id}/transitions/${expandedTransId}/rules`).then((r) => r.data.data as TransitionRule[]),
+    queryFn: () =>
+      apiClient
+        .get(`/api/v1/workflow-definitions/${id}/transitions/${expandedTransId}/rules`)
+        .then((r) => r.data.data as TransitionRule[]),
     enabled: !!id && !!expandedTransId,
   });
 
@@ -184,76 +229,155 @@ export default function WorkflowDesignerPage() {
   const transitions = transData?.items ?? [];
 
   // ReactFlow nodes/edges
-  const rfNodes: Node[] = useMemo(() =>
-    states.map((s, i) => ({
-      id: s.id,
-      position: { x: s.positionX ?? 100 + (i % 3) * 250, y: s.positionY ?? 100 + Math.floor(i / 3) * 150 },
-      data: { label: s.name },
-      style: {
-        background: s.metadata?.color || stateColors[i % stateColors.length],
-        color: "#fff",
-        borderRadius: 12,
-        padding: "12px 20px",
-        fontWeight: 600,
-        fontSize: 13,
-        border: s.isTerminal ? "3px double #fff" : s.isInitial ? "3px solid #22c55e" : "none",
-        minWidth: 120,
-        textAlign: "center" as const,
-      },
-    })), [states]);
+  const rfNodes: Node[] = useMemo(
+    () =>
+      states.map((s, i) => ({
+        id: s.id,
+        position: { x: s.positionX ?? 100 + (i % 3) * 250, y: s.positionY ?? 100 + Math.floor(i / 3) * 150 },
+        data: { label: s.name },
+        style: {
+          background: s.metadata?.color || stateColors[i % stateColors.length],
+          color: "#fff",
+          borderRadius: 12,
+          padding: "12px 20px",
+          fontWeight: 600,
+          fontSize: 13,
+          border: s.isTerminal ? "3px double #fff" : s.isInitial ? "3px solid #22c55e" : "none",
+          minWidth: 120,
+          textAlign: "center" as const,
+        },
+      })),
+    [states],
+  );
 
-  const rfEdges: Edge[] = useMemo(() =>
-    transitions.map((t) => ({
-      id: t.id,
-      source: t.fromStateId,
-      target: t.toStateId,
-      label: t.name.length > 20 ? t.name.slice(0, 20) + "…" : t.name,
-      animated: true,
-      markerEnd: { type: MarkerType.ArrowClosed },
-      style: { strokeWidth: 2 },
-      labelStyle: { fontSize: 11, fontWeight: 500 },
-    })), [transitions]);
+  const rfEdges: Edge[] = useMemo(
+    () =>
+      transitions.map((t) => ({
+        id: t.id,
+        source: t.fromStateId,
+        target: t.toStateId,
+        label: t.name.length > 20 ? t.name.slice(0, 20) + "…" : t.name,
+        animated: true,
+        markerEnd: { type: MarkerType.ArrowClosed },
+        style: { strokeWidth: 2 },
+        labelStyle: { fontSize: 11, fontWeight: 500 },
+      })),
+    [transitions],
+  );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(rfNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(rfEdges);
 
-  useEffect(() => { setNodes(rfNodes); }, [rfNodes]);
-  useEffect(() => { setEdges(rfEdges); }, [rfEdges]);
+  useEffect(() => {
+    setNodes(rfNodes);
+  }, [rfNodes]);
+  useEffect(() => {
+    setEdges(rfEdges);
+  }, [rfEdges]);
+
+  const payloadConditionKeys = useMemo(() => {
+    if (ruleType !== "expression") return [];
+
+    const seen = new Set<string>();
+    return conditions.reduce<string[]>((keys, condition) => {
+      if (condition.fact !== "payload") return keys;
+
+      const normalizedKey = normalizePayloadFieldKey(condition.path);
+      if (!normalizedKey || seen.has(normalizedKey)) return keys;
+
+      seen.add(normalizedKey);
+      keys.push(normalizedKey);
+      return keys;
+    }, []);
+  }, [conditions, ruleType]);
+
+  useEffect(() => {
+    if (ruleType !== "expression") {
+      setPayloadSchemaFields([]);
+      return;
+    }
+
+    setPayloadSchemaFields((prev) =>
+      payloadConditionKeys.map((key) => {
+        const existingField =
+          prev.find((field) => field.key === key) ?? schemaData?.fields?.find((field) => field.key === key);
+
+        if (existingField) {
+          return {
+            ...existingField,
+            type: SCHEMA_FIELD_TYPES.includes(existingField.type as (typeof SCHEMA_FIELD_TYPES)[number])
+              ? existingField.type
+              : "string",
+            label: existingField.label || formatSchemaFieldLabel(key),
+            required: true,
+          };
+        }
+
+        return {
+          key,
+          type: "string",
+          label: formatSchemaFieldLabel(key),
+          required: true,
+        };
+      }),
+    );
+  }, [payloadConditionKeys, ruleType, schemaData]);
 
   // Mutations
   const addStateMut = useMutation({
     mutationFn: (body: any) => apiClient.post(`/api/v1/workflow-definitions/${id}/states`, body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.states(id!) }); setAddStateOpen(false); resetStateForm(); toast.success("State added"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.states(id!) });
+      setAddStateOpen(false);
+      resetStateForm();
+      toast.success("State added");
+    },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
 
   const editStateMut = useMutation({
     mutationFn: ({ stateId, body }: { stateId: string; body: any }) =>
       apiClient.patch(`/api/v1/workflow-definitions/${id}/states/${stateId}`, body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.states(id!) }); setEditStateOpen(false); toast.success("State updated"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.states(id!) });
+      setEditStateOpen(false);
+      toast.success("State updated");
+    },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
 
   const deleteStateMut = useMutation({
     mutationFn: (stateId: string) => apiClient.delete(`/api/v1/workflow-definitions/${id}/states/${stateId}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.states(id!) }); toast.success("State deleted"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.states(id!) });
+      toast.success("State deleted");
+    },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
 
   const addTransMut = useMutation({
     mutationFn: (body: any) => apiClient.post(`/api/v1/workflow-definitions/${id}/transitions`, body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.transitions(id!) }); setAddTransOpen(false); resetTransForm(); toast.success("Transition added"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.transitions(id!) });
+      setAddTransOpen(false);
+      resetTransForm();
+      toast.success("Transition added");
+    },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
 
   const deleteTransMut = useMutation({
     mutationFn: (tId: string) => apiClient.delete(`/api/v1/workflow-definitions/${id}/transitions/${tId}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.transitions(id!) }); toast.success("Transition deleted"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.transitions(id!) });
+      toast.success("Transition deleted");
+    },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
 
   const addRuleMut = useMutation({
-    mutationFn: (body: any) => apiClient.post(`/api/v1/workflow-definitions/${id}/transitions/${ruleTransitionId}/rules`, body),
+    mutationFn: (body: any) =>
+      apiClient.post(`/api/v1/workflow-definitions/${id}/transitions/${ruleTransitionId}/rules`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.rules(id!, ruleTransitionId!) });
       qc.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.formSchema(id!) });
@@ -277,22 +401,45 @@ export default function WorkflowDesignerPage() {
 
   const publishMut = useMutation({
     mutationFn: () => apiClient.post(`/api/v1/workflow-definitions/${id}/publish`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workflow-definitions"] }); toast.success("Workflow published!"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["workflow-definitions"] });
+      toast.success("Workflow published!");
+    },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
 
   const deprecateMut = useMutation({
     mutationFn: () => apiClient.post(`/api/v1/workflow-definitions/${id}/deprecate`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workflow-definitions"] }); toast.success("Workflow deprecated"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["workflow-definitions"] });
+      toast.success("Workflow deprecated");
+    },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
 
-  const resetStateForm = () => { setStateName(""); setStateDesc(""); setStateIsInitial(false); setStateIsTerminal(false); setStateColor(stateColors[0]); };
-  const resetTransForm = () => { setTransName(""); setTransFrom(""); setTransTo(""); setTransComment(false); };
+  const resetStateForm = () => {
+    setStateName("");
+    setStateDesc("");
+    setStateIsInitial(false);
+    setStateIsTerminal(false);
+    setStateColor(stateColors[0]);
+  };
+  const resetTransForm = () => {
+    setTransName("");
+    setTransFrom("");
+    setTransTo("");
+    setTransComment(false);
+  };
   const resetRuleForm = () => {
-    setRuleName(""); setRuleOrder(0); setRuleType("expression"); setLogicalOp("all");
+    setRuleName("");
+    setRuleOrder(0);
+    setRuleType("expression");
+    setLogicalOp("all");
     setConditions([{ fact: "", path: "", operator: "equal", value: "" }]);
-    setCustomStrategy(""); setCustomParams("{}"); setRulePreviewOpen(false);
+    setCustomStrategy("");
+    setCustomParams("{}");
+    setPayloadSchemaFields([]);
+    setRulePreviewOpen(false);
   };
 
   const handleEditState = (s: WorkflowState) => {
@@ -324,8 +471,12 @@ export default function WorkflowDesignerPage() {
     const condArray = conditions
       .filter((c) => c.fact && c.operator)
       .map((c) => {
-        const cond: any = { fact: c.fact, operator: c.operator, value: c.value };
-        if (c.path) cond.path = c.path;
+        const cond: Record<string, unknown> = {
+          fact: c.fact,
+          ...(c.path ? { path: c.path } : {}),
+          operator: c.operator,
+          value: c.value,
+        };
         // Auto-convert numeric values
         if (!isNaN(Number(c.value)) && c.value.trim() !== "") {
           cond.value = Number(c.value);
@@ -336,27 +487,49 @@ export default function WorkflowDesignerPage() {
   };
 
   const handleSubmitRule = () => {
-    addRuleMut.mutate({
+    const body: CreateTransitionRuleRequest = {
       ruleName,
       evaluationOrder: ruleOrder,
       ruleDefinition: buildRuleDefinition(),
-    });
+      ...(payloadSchemaFields.length > 0 ? { schemaFields: payloadSchemaFields } : {}),
+    };
+
+    addRuleMut.mutate(body);
   };
 
   // Condition row helpers
   const updateCondition = (idx: number, field: keyof ConditionRow, value: string) => {
-    setConditions((prev) => prev.map((c, i) => i === idx ? { ...c, [field]: value } : c));
+    setConditions((prev) =>
+      prev.map((condition, i) => {
+        if (i !== idx) return condition;
+
+        if (field === "fact" && value === "payload") {
+          const normalizedPath = normalizePayloadFieldKey(condition.path);
+          return {
+            ...condition,
+            fact: value,
+            path: normalizedPath ? `$.${normalizedPath}` : condition.path || "$.",
+          };
+        }
+
+        return { ...condition, [field]: value };
+      }),
+    );
   };
-  const addConditionRow = () => setConditions((prev) => [...prev, { fact: "", path: "", operator: "equal", value: "" }]);
+  const addConditionRow = () =>
+    setConditions((prev) => [...prev, { fact: "", path: "", operator: "equal", value: "" }]);
   const removeConditionRow = (idx: number) => setConditions((prev) => prev.filter((_, i) => i !== idx));
+  const updatePayloadSchemaField = (key: string, field: "type" | "label", value: string) => {
+    setPayloadSchemaFields((prev) =>
+      prev.map((schemaField) => (schemaField.key === key ? { ...schemaField, [field]: value } : schemaField)),
+    );
+  };
 
   if (defLoading || statesLoading || transLoading) return <LoadingSpinner />;
 
   const facts = ruleMetadata?.facts ?? ["payload", "instance", "user"];
   const operators = ruleMetadata?.expressionOperators ?? EXPRESSION_OPERATORS;
   const customStrategies = ruleMetadata?.customStrategies ?? [];
-  const systemPaths = ruleMetadata?.systemPaths ?? [];
-
   return (
     <div className="h-[calc(100vh-3.5rem)] flex flex-col -m-6">
       {/* Toolbar */}
@@ -374,7 +547,11 @@ export default function WorkflowDesignerPage() {
               confirmLabel="Publish"
               variant="default"
               onConfirm={() => publishMut.mutate()}
-              trigger={<Button size="sm"><Rocket className="h-4 w-4 mr-1" /> Publish</Button>}
+              trigger={
+                <Button size="sm">
+                  <Rocket className="h-4 w-4 mr-1" /> Publish
+                </Button>
+              }
             />
           )}
           {defData?.status === "published" && (
@@ -383,7 +560,11 @@ export default function WorkflowDesignerPage() {
               description="Deprecating will prevent new instances from being created. Continue?"
               confirmLabel="Deprecate"
               onConfirm={() => deprecateMut.mutate()}
-              trigger={<Button size="sm" variant="outline"><AlertTriangle className="h-4 w-4 mr-1" /> Deprecate</Button>}
+              trigger={
+                <Button size="sm" variant="outline">
+                  <AlertTriangle className="h-4 w-4 mr-1" /> Deprecate
+                </Button>
+              }
             />
           )}
         </div>
@@ -416,27 +597,55 @@ export default function WorkflowDesignerPage() {
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-2 mt-2">
                 {isDraft && (
-                  <Button size="sm" variant="outline" className="w-full" onClick={() => { resetStateForm(); setAddStateOpen(true); }}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      resetStateForm();
+                      setAddStateOpen(true);
+                    }}
+                  >
                     <Plus className="h-3 w-3 mr-1" /> Add State
                   </Button>
                 )}
                 {states.map((s) => (
-                  <div key={s.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50 text-sm">
+                  <div
+                    key={s.id}
+                    className="flex items-center justify-between p-2 rounded-lg bg-muted/50 text-sm"
+                  >
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ background: s.metadata?.color || stateColors[0] }} />
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ background: s.metadata?.color || stateColors[0] }}
+                      />
                       <span className="font-medium">{s.name}</span>
-                      {s.isInitial && <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-completed/15 text-status-completed">Initial</span>}
-                      {s.isTerminal && <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/15 text-destructive">Terminal</span>}
+                      {s.isInitial && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-completed/15 text-status-completed">
+                          Initial
+                        </span>
+                      )}
+                      {s.isTerminal && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/15 text-destructive">
+                          Terminal
+                        </span>
+                      )}
                     </div>
                     {isDraft && (
                       <div className="flex gap-1">
-                        <button onClick={() => handleEditState(s)} className="p-1 hover:bg-accent rounded"><Edit className="h-3 w-3" /></button>
+                        <button onClick={() => handleEditState(s)} className="p-1 hover:bg-accent rounded">
+                          <Edit className="h-3 w-3" />
+                        </button>
                         <ConfirmDialog
                           title="Delete State"
                           description={`Delete "${s.name}"?`}
                           confirmLabel="Delete"
                           onConfirm={() => deleteStateMut.mutate(s.id)}
-                          trigger={<button className="p-1 hover:bg-accent rounded"><Trash2 className="h-3 w-3 text-destructive" /></button>}
+                          trigger={
+                            <button className="p-1 hover:bg-accent rounded">
+                              <Trash2 className="h-3 w-3 text-destructive" />
+                            </button>
+                          }
                         />
                       </div>
                     )}
@@ -453,7 +662,15 @@ export default function WorkflowDesignerPage() {
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-2 mt-2">
                 {isDraft && (
-                  <Button size="sm" variant="outline" className="w-full" onClick={() => { resetTransForm(); setAddTransOpen(true); }}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      resetTransForm();
+                      setAddTransOpen(true);
+                    }}
+                  >
                     <Plus className="h-3 w-3 mr-1" /> Add Transition
                   </Button>
                 )}
@@ -478,7 +695,9 @@ export default function WorkflowDesignerPage() {
                               className="p-1 hover:bg-accent rounded"
                               title="Show rules"
                             >
-                              <Settings2 className={`h-3 w-3 transition-colors ${isExpanded ? "text-primary" : ""}`} />
+                              <Settings2
+                                className={`h-3 w-3 transition-colors ${isExpanded ? "text-primary" : ""}`}
+                              />
                             </button>
                             {isDraft && (
                               <ConfirmDialog
@@ -486,7 +705,11 @@ export default function WorkflowDesignerPage() {
                                 description={`Delete "${t.name}"?`}
                                 confirmLabel="Delete"
                                 onConfirm={() => deleteTransMut.mutate(t.id)}
-                                trigger={<button className="p-1 hover:bg-accent rounded"><Trash2 className="h-3 w-3 text-destructive" /></button>}
+                                trigger={
+                                  <button className="p-1 hover:bg-accent rounded">
+                                    <Trash2 className="h-3 w-3 text-destructive" />
+                                  </button>
+                                }
                               />
                             )}
                           </div>
@@ -495,7 +718,11 @@ export default function WorkflowDesignerPage() {
                           {from?.name || "?"} <ArrowRight className="h-3 w-3" /> {to?.name || "?"}
                         </p>
                         <div className="flex items-center gap-1.5 mt-1">
-                          {t.requiresComment && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">Comment required</span>}
+                          {t.requiresComment && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                              Comment required
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -507,7 +734,12 @@ export default function WorkflowDesignerPage() {
                               Rules for {t.name}
                             </h4>
                             {isDraft && (
-                              <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => openRuleDialog(t.id)}>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 text-xs"
+                                onClick={() => openRuleDialog(t.id)}
+                              >
                                 <Plus className="h-3 w-3 mr-1" /> Add Rule
                               </Button>
                             )}
@@ -515,13 +747,20 @@ export default function WorkflowDesignerPage() {
                           {rulesLoading ? (
                             <p className="text-xs text-muted-foreground">Loading rules…</p>
                           ) : transRules.length === 0 ? (
-                            <p className="text-xs text-muted-foreground italic">No rules defined. Transition will always be allowed.</p>
+                            <p className="text-xs text-muted-foreground italic">
+                              No rules defined. Transition will always be allowed.
+                            </p>
                           ) : (
                             <div className="space-y-1.5">
                               {transRules.map((rule) => (
-                                <div key={rule.id} className="flex items-center justify-between p-2 rounded bg-muted/70 text-xs">
+                                <div
+                                  key={rule.id}
+                                  className="flex items-center justify-between p-2 rounded bg-muted/70 text-xs"
+                                >
                                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                                    <Badge variant="secondary" className="text-[10px] shrink-0">#{rule.evaluationOrder}</Badge>
+                                    <Badge variant="secondary" className="text-[10px] shrink-0">
+                                      #{rule.evaluationOrder}
+                                    </Badge>
                                     <span className="font-medium truncate">{rule.ruleName}</span>
                                   </div>
                                   {isDraft && (
@@ -529,8 +768,14 @@ export default function WorkflowDesignerPage() {
                                       title="Delete Rule"
                                       description={`Delete rule "${rule.ruleName}"?`}
                                       confirmLabel="Delete"
-                                      onConfirm={() => deleteRuleMut.mutate({ transitionId: t.id, ruleId: rule.id })}
-                                      trigger={<button className="p-1 hover:bg-accent rounded shrink-0"><Trash2 className="h-3 w-3 text-destructive" /></button>}
+                                      onConfirm={() =>
+                                        deleteRuleMut.mutate({ transitionId: t.id, ruleId: rule.id })
+                                      }
+                                      trigger={
+                                        <button className="p-1 hover:bg-accent rounded shrink-0">
+                                          <Trash2 className="h-3 w-3 text-destructive" />
+                                        </button>
+                                      }
                                     />
                                   )}
                                 </div>
@@ -566,13 +811,24 @@ export default function WorkflowDesignerPage() {
         {/* Form Schema Tab */}
         <TabsContent value="form-schema" className="flex-1 overflow-y-auto p-6">
           <h3 className="text-lg font-semibold mb-2">Instance Form Schema</h3>
-          <p className="text-sm text-muted-foreground mb-4">These fields are collected when creating a workflow instance.</p>
+          <p className="text-sm text-muted-foreground mb-4">
+            These fields are collected when creating a workflow instance.
+          </p>
           {(schemaData?.fields?.length ?? 0) === 0 ? (
-            <p className="text-sm text-muted-foreground">No form fields defined yet. Add rules with payload conditions to generate form fields.</p>
+            <p className="text-sm text-muted-foreground">
+              No form fields defined yet. Add rules with payload conditions to generate form fields.
+            </p>
           ) : (
             <div className="rounded-lg border bg-card">
               <table className="w-full text-sm">
-                <thead><tr className="border-b"><th className="px-4 py-2 text-left font-medium text-muted-foreground">Key</th><th className="px-4 py-2 text-left font-medium text-muted-foreground">Type</th><th className="px-4 py-2 text-left font-medium text-muted-foreground">Label</th><th className="px-4 py-2 text-left font-medium text-muted-foreground">Required</th></tr></thead>
+                <thead>
+                  <tr className="border-b">
+                    <th className="px-4 py-2 text-left font-medium text-muted-foreground">Key</th>
+                    <th className="px-4 py-2 text-left font-medium text-muted-foreground">Type</th>
+                    <th className="px-4 py-2 text-left font-medium text-muted-foreground">Label</th>
+                    <th className="px-4 py-2 text-left font-medium text-muted-foreground">Required</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {schemaData?.fields?.map((f) => (
                     <tr key={f.key} className="border-b last:border-0">
@@ -596,18 +852,29 @@ export default function WorkflowDesignerPage() {
           ) : (
             <div className="rounded-lg border bg-card">
               <table className="w-full text-sm">
-                <thead><tr className="border-b"><th className="px-4 py-2 text-left font-medium text-muted-foreground">Version</th><th className="px-4 py-2 text-left font-medium text-muted-foreground">Published By</th><th className="px-4 py-2 text-left font-medium text-muted-foreground">Published At</th><th className="px-4 py-2 text-left font-medium text-muted-foreground">Status</th></tr></thead>
+                <thead>
+                  <tr className="border-b">
+                    <th className="px-4 py-2 text-left font-medium text-muted-foreground">Version</th>
+                    <th className="px-4 py-2 text-left font-medium text-muted-foreground">Published By</th>
+                    <th className="px-4 py-2 text-left font-medium text-muted-foreground">Published At</th>
+                    <th className="px-4 py-2 text-left font-medium text-muted-foreground">Status</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {versionsData?.items?.map((v, i) => (
+                  {versionsData?.items?.map((v) => (
                     <tr key={v.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
                       <td className="px-4 py-3 font-medium">v{v.versionNumber}</td>
                       <td className="px-4 py-3 font-mono text-xs">{v.publishedBy?.slice(0, 8)}…</td>
                       <td className="px-4 py-3">{formatDateTime(v.publishedAt)}</td>
                       <td className="px-4 py-3">
                         {v.versionNumber === defData?.currentVersion ? (
-                          <Badge variant="default" className="text-[10px]">Active</Badge>
+                          <Badge variant="default" className="text-[10px]">
+                            Active
+                          </Badge>
                         ) : (
-                          <Badge variant="secondary" className="text-[10px]">Previous</Badge>
+                          <Badge variant="secondary" className="text-[10px]">
+                            Previous
+                          </Badge>
                         )}
                       </td>
                     </tr>
@@ -622,7 +889,9 @@ export default function WorkflowDesignerPage() {
       {/* Add State Dialog */}
       <Dialog open={addStateOpen} onOpenChange={setAddStateOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add State</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Add State</DialogTitle>
+          </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Name</Label>
@@ -637,18 +906,36 @@ export default function WorkflowDesignerPage() {
                 <Checkbox checked={stateIsInitial} onCheckedChange={(c) => setStateIsInitial(!!c)} /> Initial
               </label>
               <label className="flex items-center gap-2 text-sm">
-                <Checkbox checked={stateIsTerminal} onCheckedChange={(c) => setStateIsTerminal(!!c)} /> Terminal
+                <Checkbox checked={stateIsTerminal} onCheckedChange={(c) => setStateIsTerminal(!!c)} />{" "}
+                Terminal
               </label>
             </div>
             <div className="space-y-2">
               <Label>Color</Label>
               <div className="flex gap-2">
                 {stateColors.map((c) => (
-                  <button key={c} onClick={() => setStateColor(c)} className={`w-8 h-8 rounded-full border-2 ${stateColor === c ? "border-foreground" : "border-transparent"}`} style={{ background: c }} />
+                  <button
+                    key={c}
+                    onClick={() => setStateColor(c)}
+                    className={`w-8 h-8 rounded-full border-2 ${stateColor === c ? "border-foreground" : "border-transparent"}`}
+                    style={{ background: c }}
+                  />
                 ))}
               </div>
             </div>
-            <Button className="w-full" disabled={addStateMut.isPending || !stateName} onClick={() => addStateMut.mutate({ name: stateName, description: stateDesc || undefined, isInitial: stateIsInitial, isTerminal: stateIsTerminal, metadata: { color: stateColor } })}>
+            <Button
+              className="w-full"
+              disabled={addStateMut.isPending || !stateName}
+              onClick={() =>
+                addStateMut.mutate({
+                  name: stateName,
+                  description: stateDesc || undefined,
+                  isInitial: stateIsInitial,
+                  isTerminal: stateIsTerminal,
+                  metadata: { color: stateColor },
+                })
+              }
+            >
               {addStateMut.isPending ? "Adding…" : "Add State"}
             </Button>
           </div>
@@ -658,7 +945,9 @@ export default function WorkflowDesignerPage() {
       {/* Edit State Dialog */}
       <Dialog open={editStateOpen} onOpenChange={setEditStateOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Edit State</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Edit State</DialogTitle>
+          </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Name</Label>
@@ -673,18 +962,39 @@ export default function WorkflowDesignerPage() {
                 <Checkbox checked={stateIsInitial} onCheckedChange={(c) => setStateIsInitial(!!c)} /> Initial
               </label>
               <label className="flex items-center gap-2 text-sm">
-                <Checkbox checked={stateIsTerminal} onCheckedChange={(c) => setStateIsTerminal(!!c)} /> Terminal
+                <Checkbox checked={stateIsTerminal} onCheckedChange={(c) => setStateIsTerminal(!!c)} />{" "}
+                Terminal
               </label>
             </div>
             <div className="space-y-2">
               <Label>Color</Label>
               <div className="flex gap-2">
                 {stateColors.map((c) => (
-                  <button key={c} onClick={() => setStateColor(c)} className={`w-8 h-8 rounded-full border-2 ${stateColor === c ? "border-foreground" : "border-transparent"}`} style={{ background: c }} />
+                  <button
+                    key={c}
+                    onClick={() => setStateColor(c)}
+                    className={`w-8 h-8 rounded-full border-2 ${stateColor === c ? "border-foreground" : "border-transparent"}`}
+                    style={{ background: c }}
+                  />
                 ))}
               </div>
             </div>
-            <Button className="w-full" disabled={editStateMut.isPending || !stateName} onClick={() => editStateMut.mutate({ stateId: editingState!.id, body: { name: stateName, description: stateDesc || undefined, isInitial: stateIsInitial, isTerminal: stateIsTerminal, metadata: { color: stateColor } } })}>
+            <Button
+              className="w-full"
+              disabled={editStateMut.isPending || !stateName}
+              onClick={() =>
+                editStateMut.mutate({
+                  stateId: editingState!.id,
+                  body: {
+                    name: stateName,
+                    description: stateDesc || undefined,
+                    isInitial: stateIsInitial,
+                    isTerminal: stateIsTerminal,
+                    metadata: { color: stateColor },
+                  },
+                })
+              }
+            >
               {editStateMut.isPending ? "Saving…" : "Save Changes"}
             </Button>
           </div>
@@ -694,7 +1004,9 @@ export default function WorkflowDesignerPage() {
       {/* Add Transition Dialog */}
       <Dialog open={addTransOpen} onOpenChange={setAddTransOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add Transition</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Add Transition</DialogTitle>
+          </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Name</Label>
@@ -703,25 +1015,52 @@ export default function WorkflowDesignerPage() {
             <div className="space-y-2">
               <Label>From State</Label>
               <Select value={transFrom} onValueChange={setTransFrom}>
-                <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select state" />
+                </SelectTrigger>
                 <SelectContent>
-                  {states.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  {states.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label>To State</Label>
               <Select value={transTo} onValueChange={setTransTo}>
-                <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select state" />
+                </SelectTrigger>
                 <SelectContent>
-                  {states.filter((s) => s.id !== transFrom).map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  {states
+                    .filter((s) => s.id !== transFrom)
+                    .map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
             <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={transComment} onCheckedChange={(c) => setTransComment(!!c)} /> Requires Comment
+              <Checkbox checked={transComment} onCheckedChange={(c) => setTransComment(!!c)} /> Requires
+              Comment
             </label>
-            <Button className="w-full" disabled={addTransMut.isPending || !transName || !transFrom || !transTo} onClick={() => addTransMut.mutate({ name: transName, fromStateId: transFrom, toStateId: transTo, requiresComment: transComment, allowedRoleIds: [] })}>
+            <Button
+              className="w-full"
+              disabled={addTransMut.isPending || !transName || !transFrom || !transTo}
+              onClick={() =>
+                addTransMut.mutate({
+                  name: transName,
+                  fromStateId: transFrom,
+                  toStateId: transTo,
+                  requiresComment: transComment,
+                  allowedRoleIds: [],
+                })
+              }
+            >
               {addTransMut.isPending ? "Adding…" : "Add Transition"}
             </Button>
           </div>
@@ -731,18 +1070,29 @@ export default function WorkflowDesignerPage() {
       {/* Rule Builder Dialog */}
       <Dialog open={ruleDialogOpen} onOpenChange={setRuleDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Add Rule</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Add Rule</DialogTitle>
+          </DialogHeader>
           <div className="space-y-5">
             {/* Rule Name */}
             <div className="space-y-2">
               <Label>Rule Name</Label>
-              <Input value={ruleName} onChange={(e) => setRuleName(e.target.value)} placeholder="e.g. amount_exceeds_limit" />
+              <Input
+                value={ruleName}
+                onChange={(e) => setRuleName(e.target.value)}
+                placeholder="e.g. amount_exceeds_limit"
+              />
             </div>
 
             {/* Evaluation Order */}
             <div className="space-y-2">
               <Label>Evaluation Order</Label>
-              <Input type="number" value={ruleOrder} onChange={(e) => setRuleOrder(Number(e.target.value))} min={0} />
+              <Input
+                type="number"
+                value={ruleOrder}
+                onChange={(e) => setRuleOrder(Number(e.target.value))}
+                min={0}
+              />
             </div>
 
             {/* Rule Type */}
@@ -750,11 +1100,23 @@ export default function WorkflowDesignerPage() {
               <Label>Rule Type</Label>
               <div className="flex gap-3">
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input type="radio" name="ruleType" checked={ruleType === "expression"} onChange={() => setRuleType("expression")} className="accent-primary" />
+                  <input
+                    type="radio"
+                    name="ruleType"
+                    checked={ruleType === "expression"}
+                    onChange={() => setRuleType("expression")}
+                    className="accent-primary"
+                  />
                   Expression
                 </label>
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input type="radio" name="ruleType" checked={ruleType === "custom"} onChange={() => setRuleType("custom")} className="accent-primary" />
+                  <input
+                    type="radio"
+                    name="ruleType"
+                    checked={ruleType === "custom"}
+                    onChange={() => setRuleType("custom")}
+                    className="accent-primary"
+                  />
                   Custom
                 </label>
               </div>
@@ -783,9 +1145,15 @@ export default function WorkflowDesignerPage() {
                       <div>
                         {idx === 0 && <Label className="text-[10px] text-muted-foreground">Fact</Label>}
                         <Select value={cond.fact} onValueChange={(v) => updateCondition(idx, "fact", v)}>
-                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Fact" /></SelectTrigger>
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue placeholder="Fact" />
+                          </SelectTrigger>
                           <SelectContent>
-                            {facts.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                            {facts.map((f) => (
+                              <SelectItem key={f} value={f}>
+                                {f}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -800,10 +1168,19 @@ export default function WorkflowDesignerPage() {
                       </div>
                       <div>
                         {idx === 0 && <Label className="text-[10px] text-muted-foreground">Operator</Label>}
-                        <Select value={cond.operator} onValueChange={(v) => updateCondition(idx, "operator", v)}>
-                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <Select
+                          value={cond.operator}
+                          onValueChange={(v) => updateCondition(idx, "operator", v)}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
                           <SelectContent>
-                            {operators.map((op) => <SelectItem key={op} value={op}>{op}</SelectItem>)}
+                            {operators.map((op) => (
+                              <SelectItem key={op} value={op}>
+                                {op}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -828,7 +1205,73 @@ export default function WorkflowDesignerPage() {
                   <Button size="sm" variant="ghost" className="text-xs h-7" onClick={addConditionRow}>
                     <Plus className="h-3 w-3 mr-1" /> Add Condition
                   </Button>
+
+                  {schemaData?.fields?.length ? (
+                    <p className="text-[10px] text-muted-foreground">
+                      Available schema fields: {schemaData.fields.map((field) => field.key).join(", ")}
+                    </p>
+                  ) : null}
                 </div>
+
+                {payloadSchemaFields.length > 0 && (
+                  <div className="space-y-3 rounded-lg border border-dashed bg-background/80 p-3">
+                    <div>
+                      <h4 className="text-sm font-medium">This rule references payload fields</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Configure the payload fields used by this rule so they can be added to the instance
+                        form schema.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      {payloadSchemaFields.map((field, idx) => (
+                        <div
+                          key={field.key}
+                          className="grid gap-2 md:grid-cols-[1fr_1fr_1.4fr_auto] md:items-end"
+                        >
+                          <div>
+                            {idx === 0 && <Label className="text-[10px] text-muted-foreground">Key</Label>}
+                            <Input className="h-8 text-xs bg-muted" value={field.key} readOnly />
+                          </div>
+
+                          <div>
+                            {idx === 0 && <Label className="text-[10px] text-muted-foreground">Type</Label>}
+                            <Select
+                              value={field.type}
+                              onValueChange={(value) => updatePayloadSchemaField(field.key, "type", value)}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {SCHEMA_FIELD_TYPES.map((type) => (
+                                  <SelectItem key={type} value={type}>
+                                    {type}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div>
+                            {idx === 0 && <Label className="text-[10px] text-muted-foreground">Label</Label>}
+                            <Input
+                              className="h-8 text-xs"
+                              value={field.label}
+                              onChange={(e) => updatePayloadSchemaField(field.key, "label", e.target.value)}
+                              placeholder="Human-readable label"
+                            />
+                          </div>
+
+                          <label className="flex h-8 items-center gap-2 rounded-md border px-3 text-xs">
+                            <Checkbox checked={field.required} disabled aria-readonly="true" />
+                            Required
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -838,9 +1281,15 @@ export default function WorkflowDesignerPage() {
                 <div className="space-y-2">
                   <Label className="text-xs">Strategy</Label>
                   <Select value={customStrategy} onValueChange={setCustomStrategy}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select strategy" /></SelectTrigger>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Select strategy" />
+                    </SelectTrigger>
                     <SelectContent>
-                      {customStrategies.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      {customStrategies.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -852,7 +1301,9 @@ export default function WorkflowDesignerPage() {
                     <div className="flex flex-wrap gap-2">
                       {rolesData.map((role) => {
                         let params: any = {};
-                        try { params = JSON.parse(customParams); } catch {}
+                        try {
+                          params = JSON.parse(customParams);
+                        } catch {}
                         const roleIds: string[] = params.roleIds ?? [];
                         const isSelected = roleIds.includes(role.id);
                         return (
@@ -888,7 +1339,9 @@ export default function WorkflowDesignerPage() {
             {/* Rule Preview */}
             <Collapsible open={rulePreviewOpen} onOpenChange={setRulePreviewOpen}>
               <CollapsibleTrigger className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                <ChevronDown className={`h-3 w-3 transition-transform ${rulePreviewOpen ? "rotate-180" : ""}`} />
+                <ChevronDown
+                  className={`h-3 w-3 transition-transform ${rulePreviewOpen ? "rotate-180" : ""}`}
+                />
                 Preview ruleDefinition JSON
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-2">
@@ -900,7 +1353,12 @@ export default function WorkflowDesignerPage() {
 
             <Button
               className="w-full"
-              disabled={addRuleMut.isPending || !ruleName || (ruleType === "expression" && conditions.every((c) => !c.fact)) || (ruleType === "custom" && !customStrategy)}
+              disabled={
+                addRuleMut.isPending ||
+                !ruleName ||
+                (ruleType === "expression" && conditions.every((c) => !c.fact)) ||
+                (ruleType === "custom" && !customStrategy)
+              }
               onClick={handleSubmitRule}
             >
               {addRuleMut.isPending ? "Adding…" : "Add Rule"}

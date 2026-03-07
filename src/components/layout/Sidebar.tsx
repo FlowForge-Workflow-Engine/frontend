@@ -36,8 +36,7 @@ export function Sidebar() {
   const { user, logout } = useAuthStore();
   const isAdmin = user?.roles.includes("Admin");
 
-  const isActive = (path: string) =>
-    location.pathname === path || location.pathname.startsWith(path + "/");
+  const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + "/");
 
   return (
     <aside className="fixed left-0 top-0 z-30 flex h-screen w-60 flex-col border-r bg-sidebar text-sidebar-foreground">
@@ -64,7 +63,7 @@ export function Sidebar() {
               "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
               isActive(item.path)
                 ? "bg-primary/10 text-primary"
-                : "text-sidebar-foreground hover:bg-sidebar-accent"
+                : "text-sidebar-foreground hover:bg-sidebar-accent",
             )}
           >
             <item.icon className="h-4 w-4" />
@@ -88,7 +87,7 @@ export function Sidebar() {
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                   isActive(item.path)
                     ? "bg-primary/10 text-primary"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent",
                 )}
               >
                 <item.icon className="h-4 w-4" />
@@ -107,9 +106,7 @@ export function Sidebar() {
               {user?.firstName?.charAt(0) || "?"}
             </div>
             <div className="flex flex-col">
-              <span className="text-xs font-medium truncate max-w-[100px]">
-                {user?.firstName || "User"}
-              </span>
+              <span className="text-xs font-medium truncate max-w-[100px]">{user?.firstName || "User"}</span>
               <span className="text-[10px] text-muted-foreground truncate max-w-[100px]">
                 {user?.email || ""}
               </span>
