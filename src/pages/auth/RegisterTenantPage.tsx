@@ -22,17 +22,30 @@ const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[\d\W]).{8,32}$/;
 
 const registerSchema = z
   .object({
-    tenantName: z.string().min(2, "Min 2 chars").max(100),
+    tenantName: z
+      .string()
+      .min(2, "Company name must be at least 2 characters")
+      .max(100, "Company name must be at most 100 characters"),
     tenantSlug: z
       .string()
-      .min(3, "Min 3 chars")
-      .max(50)
-      .regex(/^[a-z0-9-]+$/, "Lowercase, numbers, hyphens only"),
-    firstName: z.string().min(1, "Required").max(50),
-    lastName: z.string().min(1, "Required").max(50),
+      .min(3, "Company slug must be at least 3 characters")
+      .max(50, "Company slug must be at most 50 characters")
+      .regex(/^[a-z0-9-]+$/, "Use lowercase letters, numbers, and hyphens only"),
+    firstName: z
+      .string()
+      .min(1, "First name is required")
+      .max(50, "First name must be at most 50 characters"),
+    lastName: z.string().min(1, "Last name is required").max(50, "Last name must be at most 50 characters"),
     email: z.string().email("Enter a valid email"),
-    password: z.string().regex(passwordRegex, "8–32 chars, upper + lower + number/special"),
-    confirmPassword: z.string(),
+    password: z
+      .string()
+      .min(1, "Password is required")
+      .max(32, "Password must be at most 32 characters")
+      .regex(
+        passwordRegex,
+        "Use 8–32 characters with uppercase, lowercase, and a number or special character",
+      ),
+    confirmPassword: z.string().min(1, "Please confirm your password"),
   })
   .refine((d) => d.password === d.confirmPassword, {
     message: "Passwords must match",
@@ -53,6 +66,8 @@ export default function RegisterTenantPage() {
     formState: { errors },
   } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
+    mode: "onChange",
+    reValidateMode: "onChange",
   });
 
   const slug = watch("tenantSlug");
@@ -77,9 +92,7 @@ export default function RegisterTenantPage() {
   const mutation = useMutation({
     mutationFn: async (data: RegisterForm) => {
       const { confirmPassword, ...body } = data;
-      return unwrap<RegisterTenantResponse>(
-        await apiClient.post("/api/v1/auth/register/tenant", body)
-      );
+      return unwrap<RegisterTenantResponse>(await apiClient.post("/api/v1/auth/register/tenant", body));
     },
     onSuccess: (res) => {
       const jwt = decodeJwt(res.accessToken);
@@ -108,9 +121,7 @@ export default function RegisterTenantPage() {
             FF
           </div>
           <h1 className="text-2xl font-bold">Create your company</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Set up a new FlowForge workspace
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">Set up a new FlowForge workspace</p>
         </div>
 
         <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-4">
@@ -176,7 +187,9 @@ export default function RegisterTenantPage() {
           <div className="space-y-2">
             <Label>Confirm Password</Label>
             <Input type="password" {...register("confirmPassword")} />
-            {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>}
+            {errors.confirmPassword && (
+              <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>
+            )}
           </div>
 
           <Button type="submit" className="w-full" disabled={mutation.isPending}>
@@ -187,11 +200,15 @@ export default function RegisterTenantPage() {
         <div className="text-center text-sm text-muted-foreground space-y-1">
           <p>
             Already have an account?{" "}
-            <Link to="/login" className="text-primary hover:underline font-medium">Sign in</Link>
+            <Link to="/login" className="text-primary hover:underline font-medium">
+              Sign in
+            </Link>
           </p>
           <p>
             Joining an existing company?{" "}
-            <Link to="/register/join" className="text-primary hover:underline font-medium">Join here</Link>
+            <Link to="/register/join" className="text-primary hover:underline font-medium">
+              Join here
+            </Link>
           </p>
         </div>
       </div>
