@@ -33,7 +33,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, ChevronDown, Edit, Plus, Rocket, Trash2, ArrowRight, Settings2 } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronDown,
+  Edit,
+  Info,
+  Plus,
+  Rocket,
+  Trash2,
+  ArrowRight,
+  Settings2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/utils/error-messages";
 import { formatDateTime } from "@/utils/format-date";
@@ -75,6 +85,14 @@ const normalizePayloadFieldKey = (path: string) => {
   if (trimmed.startsWith("$.")) return trimmed.slice(2).trim();
   if (trimmed.startsWith("$")) return trimmed.slice(1).replace(/^\./, "").trim();
   return trimmed.replace(/^\./, "").trim();
+};
+
+const ensureJsonPath = (path: string) => {
+  const trimmed = path.trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("$.")) return trimmed;
+  if (trimmed.startsWith("$")) return `$.${trimmed.slice(1).replace(/^\./, "").trim()}`;
+  return `$.${trimmed.replace(/^\./, "").trim()}`;
 };
 
 const formatSchemaFieldLabel = (key: string) =>
@@ -274,6 +292,14 @@ export default function WorkflowDesignerPage() {
   useEffect(() => {
     setEdges(rfEdges);
   }, [rfEdges]);
+
+  const systemPathOptionsByFact = useMemo(
+    () => ({
+      user: (ruleMetadata?.systemPaths ?? []).filter((item) => item.fact === "user"),
+      instance: (ruleMetadata?.systemPaths ?? []).filter((item) => item.fact === "instance"),
+    }),
+    [ruleMetadata],
+  );
 
   const payloadConditionKeys = useMemo(() => {
     if (ruleType !== "expression") return [];
@@ -512,6 +538,26 @@ export default function WorkflowDesignerPage() {
           };
         }
 
+        if (field === "fact" && (value === "user" || value === "instance")) {
+          const options = systemPathOptionsByFact[value];
+          const trimmedPath = condition.path.trim();
+          const jsonPath = ensureJsonPath(trimmedPath);
+          const matchingOption = options.find(
+            (option) =>
+              option.path === trimmedPath || option.path === jsonPath || option.fullPath === trimmedPath,
+          );
+
+          return {
+            ...condition,
+            fact: value,
+            path: matchingOption?.path ?? options[0]?.path ?? jsonPath,
+          };
+        }
+
+        if (field === "path" && ["payload", "user", "instance"].includes(condition.fact)) {
+          return { ...condition, path: ensureJsonPath(value) };
+        }
+
         return { ...condition, [field]: value };
       }),
     );
@@ -523,6 +569,12 @@ export default function WorkflowDesignerPage() {
     setPayloadSchemaFields((prev) =>
       prev.map((schemaField) => (schemaField.key === key ? { ...schemaField, [field]: value } : schemaField)),
     );
+  };
+
+  const getSystemPathDescription = (fact: string, path: string) => {
+    if (fact !== "user" && fact !== "instance") return null;
+
+    return systemPathOptionsByFact[fact].find((item) => item.path === path)?.description ?? null;
   };
 
   if (defLoading || statesLoading || transLoading) return <LoadingSpinner />;
@@ -1141,65 +1193,93 @@ export default function WorkflowDesignerPage() {
                 {/* Conditions */}
                 <div className="space-y-2">
                   {conditions.map((cond, idx) => (
-                    <div key={idx} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 items-end">
-                      <div>
-                        {idx === 0 && <Label className="text-[10px] text-muted-foreground">Fact</Label>}
-                        <Select value={cond.fact} onValueChange={(v) => updateCondition(idx, "fact", v)}>
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Fact" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {facts.map((f) => (
-                              <SelectItem key={f} value={f}>
-                                {f}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        {idx === 0 && <Label className="text-[10px] text-muted-foreground">Path</Label>}
-                        <Input
-                          className="h-8 text-xs"
-                          value={cond.path}
-                          onChange={(e) => updateCondition(idx, "path", e.target.value)}
-                          placeholder={cond.fact === "payload" ? "$.fieldName" : ""}
-                        />
-                      </div>
-                      <div>
-                        {idx === 0 && <Label className="text-[10px] text-muted-foreground">Operator</Label>}
-                        <Select
-                          value={cond.operator}
-                          onValueChange={(v) => updateCondition(idx, "operator", v)}
+                    <div key={idx} className="space-y-1">
+                      <div className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 items-end">
+                        <div>
+                          {idx === 0 && <Label className="text-[10px] text-muted-foreground">Fact</Label>}
+                          <Select value={cond.fact} onValueChange={(v) => updateCondition(idx, "fact", v)}>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Fact" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {facts.map((f) => (
+                                <SelectItem key={f} value={f}>
+                                  {f}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          {idx === 0 && <Label className="text-[10px] text-muted-foreground">Path</Label>}
+                          {cond.fact === "user" || cond.fact === "instance" ? (
+                            <Select value={cond.path} onValueChange={(v) => updateCondition(idx, "path", v)}>
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Select path" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {systemPathOptionsByFact[cond.fact].map((systemPath) => (
+                                  <SelectItem
+                                    key={`${systemPath.fact}-${systemPath.path}`}
+                                    value={systemPath.path}
+                                  >
+                                    {systemPath.fullPath || systemPath.path}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input
+                              className="h-8 text-xs"
+                              value={cond.path}
+                              onChange={(e) => updateCondition(idx, "path", e.target.value)}
+                              placeholder={cond.fact === "payload" ? "$.fieldName" : ""}
+                            />
+                          )}
+                        </div>
+                        <div>
+                          {idx === 0 && <Label className="text-[10px] text-muted-foreground">Operator</Label>}
+                          <Select
+                            value={cond.operator}
+                            onValueChange={(v) => updateCondition(idx, "operator", v)}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {operators.map((op) => (
+                                <SelectItem key={op} value={op}>
+                                  {op}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          {idx === 0 && <Label className="text-[10px] text-muted-foreground">Value</Label>}
+                          <Input
+                            className="h-8 text-xs"
+                            value={cond.value}
+                            onChange={(e) => updateCondition(idx, "value", e.target.value)}
+                            placeholder="Value"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeConditionRow(idx)}
+                          className="p-1.5 hover:bg-accent rounded text-muted-foreground hover:text-destructive disabled:opacity-30"
+                          disabled={conditions.length === 1}
                         >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {operators.map((op) => (
-                              <SelectItem key={op} value={op}>
-                                {op}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          <Trash2 className="h-3 w-3" />
+                        </button>
                       </div>
-                      <div>
-                        {idx === 0 && <Label className="text-[10px] text-muted-foreground">Value</Label>}
-                        <Input
-                          className="h-8 text-xs"
-                          value={cond.value}
-                          onChange={(e) => updateCondition(idx, "value", e.target.value)}
-                          placeholder="Value"
-                        />
-                      </div>
-                      <button
-                        onClick={() => removeConditionRow(idx)}
-                        className="p-1.5 hover:bg-accent rounded text-muted-foreground hover:text-destructive disabled:opacity-30"
-                        disabled={conditions.length === 1}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
+
+                      {getSystemPathDescription(cond.fact, cond.path) && (
+                        <div className="flex items-start gap-1 rounded-md bg-muted/40 px-2 py-1 text-[10px] text-muted-foreground">
+                          <Info className="mt-0.5 h-3 w-3 shrink-0" />
+                          <span>{getSystemPathDescription(cond.fact, cond.path)}. CAN BE IGNORED</span>
+                        </div>
+                      )}
                     </div>
                   ))}
                   <Button size="sm" variant="ghost" className="text-xs h-7" onClick={addConditionRow}>
@@ -1217,10 +1297,16 @@ export default function WorkflowDesignerPage() {
                   <div className="space-y-3 rounded-lg border border-dashed bg-background/80 p-3">
                     <div>
                       <h4 className="text-sm font-medium">This rule references payload fields</h4>
-                      <p className="text-xs text-muted-foreground">
-                        Configure the payload fields used by this rule so they can be added to the instance
-                        form schema.
-                      </p>
+                      <div
+                        role="note"
+                        className="mt-2 flex items-start gap-2 rounded-md border border-status-draft/30 bg-status-draft/10 px-3 py-2 text-xs text-status-draft"
+                      >
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span>
+                          Important: these payload fields must be provided during instance creation. If any of
+                          them are missing, instance creation will fail.
+                        </span>
+                      </div>
                     </div>
 
                     <div className="space-y-2">

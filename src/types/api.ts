@@ -271,7 +271,7 @@ export interface RuleMetadata {
   ruleTypes: string[];
   customStrategies: string[];
   expressionOperators: string[];
-  systemPaths: Array<{ fact: string; path: string; description: string }>;
+  systemPaths: Array<{ fact: string; path: string; fullPath?: string; description: string }>;
   payloadPathFormat: string;
   expressionRuleDefinitionExample: object;
   customRuleDefinitionExample: object;
