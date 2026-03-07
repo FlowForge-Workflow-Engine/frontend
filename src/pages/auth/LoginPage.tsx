@@ -16,7 +16,6 @@ import { getErrorMessage } from "@/utils/error-messages";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { toast } from "sonner";
 import { Info } from "lucide-react";
 import type { LoginResponse } from "@/types/api";
@@ -50,9 +49,7 @@ export default function LoginPage() {
   const loginMutation = useMutation({
     mutationFn: async (data: LoginForm) => {
       // Login
-      const loginRes = unwrap<LoginResponse>(
-        await apiClient.post("/api/v1/auth/login", data)
-      );
+      const loginRes = unwrap<LoginResponse>(await apiClient.post("/api/v1/auth/login", data));
 
       // Save tenantId for future logins
       localStorage.setItem("flowforge-tenantId", data.tenantId);
@@ -61,12 +58,12 @@ export default function LoginPage() {
       const meRes = unwrap<any>(
         await apiClient.get("/api/v1/auth/me", {
           headers: { Authorization: `Bearer ${loginRes.accessToken}` },
-        })
+        }),
       );
 
       return { tokens: loginRes, profile: meRes };
     },
-    onSuccess: ({ tokens, profile }) => {
+    onSuccess: ({ tokens }) => {
       const jwt = decodeJwt(tokens.accessToken);
       setSession(tokens.accessToken, tokens.refreshToken, {
         id: jwt.sub,
@@ -95,9 +92,7 @@ export default function LoginPage() {
             FF
           </div>
           <h1 className="text-2xl font-bold">Sign in to FlowForge</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Enter your credentials to continue
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">Enter your credentials to continue</p>
         </div>
 
         <form onSubmit={handleSubmit((data) => loginMutation.mutate(data))} className="space-y-4">
@@ -117,8 +112,9 @@ export default function LoginPage() {
             <Label htmlFor="tenantId">Tenant ID</Label>
             <Input id="tenantId" placeholder="Your company's Tenant ID (UUID)" {...register("tenantId")} />
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Info className="h-3 w-3" />
-              You received this when your account was created.
+              <Info className="h-6 w-6" />
+              Admins receive this when their account is created. For other roles, please contact your admin to
+              get the Tenant ID.
             </div>
             {errors.tenantId && <p className="text-xs text-destructive">{errors.tenantId.message}</p>}
           </div>
