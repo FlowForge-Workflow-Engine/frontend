@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Rocket } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Rocket } from "lucide-react";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/utils/error-messages";
 import type { WorkflowDefinition, FormSchemaField, WorkflowInstance } from "@/types/api";
@@ -131,29 +131,42 @@ export default function CreateInstancePage() {
               This workflow has no form fields. Click create to start.
             </p>
           ) : (
-            fields.map((f) => (
-              <div key={f.key} className="space-y-2">
-                <Label>
-                  {f.label || f.key}
-                  {f.required && <span className="text-destructive ml-1">*</span>}
-                </Label>
-                {f.type === "boolean" ? (
-                  <div className="flex items-center gap-2">
-                    <Checkbox checked={!!payload[f.key]} onCheckedChange={(c) => updateField(f.key, !!c)} />
-                    <span className="text-sm">Yes</span>
-                  </div>
-                ) : (
-                  <Input
-                    type={f.type === "number" ? "number" : "text"}
-                    value={payload[f.key] ?? ""}
-                    onChange={(e) =>
-                      updateField(f.key, f.type === "number" ? Number(e.target.value) : e.target.value)
-                    }
-                    placeholder={f.label || f.key}
-                  />
-                )}
+            <>
+              <div
+                role="note"
+                className="mt-2 flex items-start gap-2 rounded-md border border-status-draft/30 bg-status-draft/10 px-3 py-2 text-xs text-status-draft"
+              >
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  Important: these payload fields must be provided during instance creation. If any of them
+                  are missing, instance creation will fail.
+                </span>
               </div>
-            ))
+
+              {fields.map((f) => (
+                <div key={f.key} className="space-y-2">
+                  <Label>
+                    {f.key || f.key}
+                    {f.required && <span className="text-destructive ml-1">*</span>}
+                  </Label>
+                  {f.type === "boolean" ? (
+                    <div className="flex items-center gap-2">
+                      <Checkbox checked={!!payload[f.key]} onCheckedChange={(c) => updateField(f.key, !!c)} />
+                      <span className="text-sm">Yes</span>
+                    </div>
+                  ) : (
+                    <Input
+                      type={f.type === "number" ? "number" : "text"}
+                      value={payload[f.key] ?? ""}
+                      onChange={(e) =>
+                        updateField(f.key, f.type === "number" ? Number(e.target.value) : e.target.value)
+                      }
+                      placeholder={f.label || f.key}
+                    />
+                  )}
+                </div>
+              ))}
+            </>
           )}
 
           <Button
