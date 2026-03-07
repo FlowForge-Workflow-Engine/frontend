@@ -26,7 +26,7 @@ import { formatDateTime } from "@/utils/format-date";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/utils/error-messages";
 import type { WorkflowInstance, AllowedTransition, AuditLog } from "@/types/api";
-import { v4 as uuidv4 } from "crypto";
+
 
 /** Generate a simple UUID without external lib */
 function genUUID() {

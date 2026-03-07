@@ -140,11 +140,11 @@ export default function UsersPage() {
               <DialogHeader><DialogTitle>Add User</DialogTitle></DialogHeader>
               <form onSubmit={handleSubmit((d) => createMut.mutate(d))} className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2"><Label>First Name</Label><Input {...register("firstName")} />{errors.firstName && <p className="text-xs text-destructive">{errors.firstName.message}</p>}</div>
-                  <div className="space-y-2"><Label>Last Name</Label><Input {...register("lastName")} />{errors.lastName && <p className="text-xs text-destructive">{errors.lastName.message}</p>}</div>
+                  <div className="space-y-2"><Label>First Name</Label><Input {...register("firstName")} />{errors.firstName && <p className="text-xs text-destructive">{String(errors.firstName.message)}</p>}</div>
+                  <div className="space-y-2"><Label>Last Name</Label><Input {...register("lastName")} />{errors.lastName && <p className="text-xs text-destructive">{String(errors.lastName.message)}</p>}</div>
                 </div>
-                <div className="space-y-2"><Label>Email</Label><Input type="email" {...register("email")} />{errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}</div>
-                <div className="space-y-2"><Label>Password</Label><Input type="password" {...register("password")} />{errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}</div>
+                <div className="space-y-2"><Label>Email</Label><Input type="email" {...register("email")} />{errors.email && <p className="text-xs text-destructive">{String(errors.email.message)}</p>}</div>
+                <div className="space-y-2"><Label>Password</Label><Input type="password" {...register("password")} />{errors.password && <p className="text-xs text-destructive">{String(errors.password.message)}</p>}</div>
                 <Button type="submit" className="w-full" disabled={createMut.isPending}>{createMut.isPending ? "Creating…" : "Create User"}</Button>
               </form>
             </DialogContent>

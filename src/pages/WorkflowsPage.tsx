@@ -108,7 +108,7 @@ export default function WorkflowsPage() {
                 <div className="space-y-2">
                   <Label>Name</Label>
                   <Input {...register("name")} placeholder="My Workflow" />
-                  {formErrors.name && <p className="text-xs text-destructive">{formErrors.name.message}</p>}
+                  {formErrors.name && <p className="text-xs text-destructive">{String(formErrors.name.message)}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label>Description</Label>
