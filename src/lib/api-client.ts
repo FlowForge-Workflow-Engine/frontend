@@ -5,7 +5,7 @@ import axios from "axios";
 import { useAuthStore } from "@/stores/auth-store";
 
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: import.meta.env.VITE_API_BASE_URL || "",
   headers: {
     "Content-Type": "application/json",
     "ngrok-skip-browser-warning": "true",
@@ -28,10 +28,10 @@ apiClient.interceptors.response.use(
       original._retry = true;
       try {
         const refreshToken = useAuthStore.getState().refreshToken;
-        const { data } = await axios.post(
-          `${import.meta.env.VITE_API_BASE_URL}/api/v1/auth/refresh`,
+        const { data } = await apiClient.post(
+          "/api/v1/auth/refresh",
           { refreshToken },
-          { headers: { "ngrok-skip-browser-warning": "true" } }
+          { headers: { "ngrok-skip-browser-warning": "true" } },
         );
         // Update tokens from the refresh response
         const newAccess = data.data?.accessToken ?? data.accessToken;
@@ -45,5 +45,5 @@ apiClient.interceptors.response.use(
       }
     }
     return Promise.reject(error);
-  }
+  },
 );
