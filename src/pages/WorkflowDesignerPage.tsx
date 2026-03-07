@@ -165,6 +165,7 @@ export default function WorkflowDesignerPage() {
   // Fetch states
   const { data: statesData, isLoading: statesLoading } = useQuery({
     queryKey: queryKeys.workflowDefinitions.states(id!),
+    //NOTE: Intentionally capped at 100 because a workflow definition cannot have more than 100 states.
     queryFn: () =>
       apiClient
         .get(`/api/v1/workflow-definitions/${id}/states?page=1&limit=100`)
@@ -175,6 +176,7 @@ export default function WorkflowDesignerPage() {
   // Fetch transitions
   const { data: transData, isLoading: transLoading } = useQuery({
     queryKey: queryKeys.workflowDefinitions.transitions(id!),
+    //NOTE: Intentionally capped at 100 because a workflow definition cannot have more than 100 transitions.
     queryFn: () =>
       apiClient
         .get(`/api/v1/workflow-definitions/${id}/transitions?page=1&limit=100`)

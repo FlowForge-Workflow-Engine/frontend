@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
-import { unwrap } from "@/lib/api-helpers";
+import { unwrap, unwrapList } from "@/lib/api-helpers";
 import { queryKeys } from "@/lib/query-keys";
 import { PageHeader } from "@/components/common/PageHeader";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
@@ -25,12 +25,20 @@ export default function CreateInstancePage() {
   const qc = useQueryClient();
   const [selectedDef, setSelectedDef] = useState<WorkflowDefinition | null>(null);
   const [payload, setPayload] = useState<Record<string, any>>({});
+  const [page, setPage] = useState(1);
+  const pageSize = 12;
+
+  const queryParams = new URLSearchParams({
+    status: "published",
+    page: String(page),
+    limit: String(pageSize),
+  });
 
   // Fetch published definitions
-  const { data: defs, isLoading } = useQuery({
-    queryKey: queryKeys.workflowDefinitions.list({ status: "published" }),
-    queryFn: () => apiClient.get("/api/v1/workflow-definitions?status=published&page=1&limit=100"),
-    select: (res) => res.data.data as WorkflowDefinition[],
+  const { data: defsData, isLoading } = useQuery({
+    queryKey: queryKeys.workflowDefinitions.list({ status: "published", page, limit: pageSize }),
+    queryFn: () => apiClient.get(`/api/v1/workflow-definitions?${queryParams}`),
+    select: (res) => unwrapList<WorkflowDefinition>(res),
   });
 
   // Fetch form schema for selected definition
@@ -60,6 +68,9 @@ export default function CreateInstancePage() {
   });
 
   const fields = schema?.fields ?? [];
+  const defs = defsData?.items ?? [];
+  const totalDefs = defsData?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalDefs / pageSize));
 
   const updateField = (key: string, value: any) => {
     setPayload((p) => ({ ...p, [key]: value }));
@@ -80,31 +91,63 @@ export default function CreateInstancePage() {
     return (
       <div>
         <PageHeader title="Create Instance" subtitle="Select a published workflow" />
-        {(defs?.length ?? 0) === 0 ? (
+        {totalDefs === 0 ? (
           <p className="text-muted-foreground text-sm">No published workflows available.</p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {defs?.map((d) => (
-              <Card
-                key={d.id}
-                className="cursor-pointer hover:border-primary/30 transition-colors"
-                onClick={() => {
-                  setSelectedDef(d);
-                  setPayload({});
-                }}
-              >
-                <CardContent className="p-5">
-                  <h3 className="font-semibold mb-1">{d.name}</h3>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>v{d.currentVersion}</span>
-                    <StatusBadge status={d.status} />
-                  </div>
-                  {d.description && (
-                    <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{d.description}</p>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+          <div className="space-y-6">
+            {defs.length === 0 ? (
+              <div className="rounded-lg border border-dashed bg-card px-6 py-10 text-center text-sm text-muted-foreground">
+                No published workflows are available on this page.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {defs.map((d) => (
+                  <Card
+                    key={d.id}
+                    className="cursor-pointer hover:border-primary/30 transition-colors"
+                    onClick={() => {
+                      setSelectedDef(d);
+                      setPayload({});
+                    }}
+                  >
+                    <CardContent className="p-5">
+                      <h3 className="font-semibold mb-1">{d.name}</h3>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>v{d.currentVersion}</span>
+                        <StatusBadge status={d.status} />
+                      </div>
+                      {d.description && (
+                        <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{d.description}</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {totalDefs > pageSize && (
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalDefs)} of {totalDefs}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setPage(page - 1)} disabled={page <= 1}>
+                    Previous
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Page {page} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(page + 1)}
+                    disabled={page >= totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

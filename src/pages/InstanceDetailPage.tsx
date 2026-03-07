@@ -38,6 +38,7 @@ export default function InstanceDetailPage() {
   const [comment, setComment] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState("");
   const [auditPage, setAuditPage] = useState(1);
+  const auditPageSize = 50;
 
   // Fetch instance
   const { data: instance, isLoading } = useQuery({
@@ -58,8 +59,9 @@ export default function InstanceDetailPage() {
 
   // Fetch audit logs
   const { data: auditData } = useQuery({
-    queryKey: queryKeys.workflowInstances.auditLogs(id!, { page: auditPage }),
-    queryFn: () => apiClient.get(`/api/v1/workflow-instances/${id}/audit-logs?page=${auditPage}&limit=20`),
+    queryKey: queryKeys.workflowInstances.auditLogs(id!, { page: auditPage, limit: auditPageSize }),
+    queryFn: () =>
+      apiClient.get(`/api/v1/workflow-instances/${id}/audit-logs?page=${auditPage}&limit=${auditPageSize}`),
     select: (res) => ({ items: res.data.data as AuditLog[], count: res.data.count as number }),
     enabled: !!id,
   });
@@ -77,7 +79,7 @@ export default function InstanceDetailPage() {
         qc.invalidateQueries({ queryKey: ["workflow-instances", "list"] }),
         qc.invalidateQueries({ queryKey: queryKeys.workflowInstances.detail(id!) }),
         qc.invalidateQueries({ queryKey: queryKeys.workflowInstances.allowedTransitions(id!) }),
-        qc.invalidateQueries({ queryKey: queryKeys.workflowInstances.auditLogs(id!, { page: auditPage }) }),
+        qc.invalidateQueries({ queryKey: ["workflow-instances", id!, "audit-logs"] }),
       ]);
       setExecDialog(null);
       setComment("");
@@ -101,6 +103,7 @@ export default function InstanceDetailPage() {
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["workflow-instances", "list"] }),
         qc.invalidateQueries({ queryKey: queryKeys.workflowInstances.detail(id!) }),
+        qc.invalidateQueries({ queryKey: ["workflow-instances", id!, "audit-logs"] }),
       ]);
       toast.success("Instance cancelled");
     },
@@ -116,6 +119,8 @@ export default function InstanceDetailPage() {
   if (isLoading || !instance) return <LoadingSpinner />;
 
   const auditLogs = auditData?.items ?? [];
+  const auditTotal = auditData?.count ?? 0;
+  const auditTotalPages = Math.max(1, Math.ceil(auditTotal / auditPageSize));
 
   const actionIcon = (actionType: string) => {
     switch (actionType) {
@@ -290,15 +295,34 @@ export default function InstanceDetailPage() {
                       </div>
                     </div>
                   ))}
-                  {auditData && auditData.count > auditPage * 20 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => setAuditPage((p) => p + 1)}
-                    >
-                      Load more
-                    </Button>
+                  {auditTotal > auditPageSize && (
+                    <div className="flex items-center justify-between border-t pt-3">
+                      <p className="text-xs text-muted-foreground">
+                        Showing {(auditPage - 1) * auditPageSize + 1}–
+                        {Math.min(auditPage * auditPageSize, auditTotal)} of {auditTotal}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setAuditPage((page) => page - 1)}
+                          disabled={auditPage <= 1}
+                        >
+                          Previous
+                        </Button>
+                        <span className="text-xs text-muted-foreground">
+                          Page {auditPage} of {auditTotalPages}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setAuditPage((page) => page + 1)}
+                          disabled={auditPage >= auditTotalPages}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}

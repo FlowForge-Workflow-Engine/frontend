@@ -1,10 +1,11 @@
 /**
  * InstancesPage — List workflow instances with filters and pagination.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+import { unwrap } from "@/lib/api-helpers";
 import { queryKeys } from "@/lib/query-keys";
 import { PageHeader } from "@/components/common/PageHeader";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -14,20 +15,18 @@ import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { DataTable } from "@/components/common/DataTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Play } from "lucide-react";
 import { formatDate } from "@/utils/format-date";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { WorkflowInstance } from "@/types/api";
+import type { WorkflowDefinition, WorkflowInstance } from "@/types/api";
 
 export default function InstancesPage() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const limit = 20;
+  const limit = 10; // NOTE: Intentionally have a small limit to make table more responsive.
 
   const queryParams = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (statusFilter !== "all") queryParams.set("status", statusFilter);
@@ -38,15 +37,55 @@ export default function InstancesPage() {
     select: (res) => ({ items: res.data.data as WorkflowInstance[], count: res.data.count as number }),
   });
 
+  const workflowDefinitionIds = useMemo(
+    () => Array.from(new Set((data?.items ?? []).map((instance) => instance.workflowDefinitionId))),
+    [data?.items],
+  );
+
+  const workflowDefinitionQueries = useQueries({
+    queries: workflowDefinitionIds.map((id) => ({
+      queryKey: queryKeys.workflowDefinitions.detail(id),
+      queryFn: () =>
+        apiClient.get(`/api/v1/workflow-definitions/${id}`).then((res) => unwrap<WorkflowDefinition>(res)),
+      staleTime: 1000 * 60 * 10,
+    })),
+  });
+
+  const workflowNameById = useMemo(
+    () =>
+      Object.fromEntries(
+        workflowDefinitionQueries
+          .map((query) => query.data)
+          .filter((def): def is WorkflowDefinition => Boolean(def))
+          .map((def) => [def.id, def.name]),
+      ),
+    [workflowDefinitionQueries],
+  );
+
   const filtered = (data?.items ?? []).filter((i) => {
     if (!search) return true;
-    return i.currentStateName.toLowerCase().includes(search.toLowerCase()) || i.id.includes(search);
+    const query = search.toLowerCase();
+    const workflowName = workflowNameById[i.workflowDefinitionId]?.toLowerCase() ?? "";
+
+    return (
+      i.currentStateName.toLowerCase().includes(query) ||
+      workflowName.includes(query) ||
+      i.id.includes(search)
+    );
   });
 
   const columns: ColumnDef<WorkflowInstance>[] = [
     {
       header: "ID",
       cell: ({ row }) => <CopyableId id={row.original.id} />,
+    },
+    {
+      header: "Workflow",
+      cell: ({ row }) => (
+        <span className="text-sm">
+          {workflowNameById[row.original.workflowDefinitionId] ?? "Unknown workflow"}
+        </span>
+      ),
     },
     { accessorKey: "currentStateName", header: "Current State" },
     {
@@ -59,7 +98,9 @@ export default function InstancesPage() {
     },
     {
       header: "Created",
-      cell: ({ row }) => <span className="text-muted-foreground text-sm">{formatDate(row.original.createdAt)}</span>,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground text-sm">{formatDate(row.original.createdAt)}</span>
+      ),
     },
     {
       header: "Actions",
@@ -85,9 +126,22 @@ export default function InstancesPage() {
       />
 
       <div className="flex gap-3 mb-6">
-        <Input placeholder="Search…" value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs" />
-        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
-          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+        <Input
+          placeholder="Search…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-xs"
+        />
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => {
+            setStatusFilter(v);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All</SelectItem>
             <SelectItem value="active">Active</SelectItem>
@@ -98,9 +152,22 @@ export default function InstancesPage() {
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyState icon={Play} title="No instances" description="Create a new instance to get started." actionLabel="New Instance" onAction={() => navigate("/instances/new")} />
+        <EmptyState
+          icon={Play}
+          title="No instances"
+          description="Create a new instance to get started."
+          actionLabel="New Instance"
+          onAction={() => navigate("/instances/new")}
+        />
       ) : (
-        <DataTable columns={columns} data={filtered} totalCount={data?.count} page={page} pageSize={limit} onPageChange={setPage} />
+        <DataTable
+          columns={columns}
+          data={filtered}
+          totalCount={data?.count}
+          page={page}
+          pageSize={limit}
+          onPageChange={setPage}
+        />
       )}
     </div>
   );

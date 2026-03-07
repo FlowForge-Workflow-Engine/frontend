@@ -21,12 +21,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus, GitBranch, Trash2 } from "lucide-react";
 import { formatDate } from "@/utils/format-date";
@@ -48,14 +44,23 @@ export default function WorkflowsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [page, setPage] = useState(1);
+  const pageSize = 12;
+
+  const queryParams = new URLSearchParams({ page: String(page), limit: String(pageSize) });
+  if (statusFilter !== "all") queryParams.set("status", statusFilter);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: queryKeys.workflowDefinitions.list({ page, limit: 100 }),
-    queryFn: () => apiClient.get(`/api/v1/workflow-definitions?page=${page}&limit=100`),
-    select: (res) => ({ items: res.data.data as WorkflowDefinition[], count: res.data.count as number }),
+    queryKey: queryKeys.workflowDefinitions.list({ page, limit: pageSize, status: statusFilter }),
+    queryFn: () => apiClient.get(`/api/v1/workflow-definitions?${queryParams}`),
+    select: (res) => unwrapList<WorkflowDefinition>(res),
   });
 
-  const { register, handleSubmit, reset, formState: { errors: formErrors } } = useForm({
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors: formErrors },
+  } = useForm({
     resolver: zodResolver(createSchema),
   });
 
@@ -83,10 +88,12 @@ export default function WorkflowsPage() {
 
   // Client-side filter
   const filtered = (data?.items ?? []).filter((d) => {
-    if (statusFilter !== "all" && d.status !== statusFilter) return false;
     if (search && !d.name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
+
+  const totalCount = data?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   if (isLoading) return <LoadingSpinner />;
   if (error) return <ErrorMessage error={error} />;
@@ -98,7 +105,9 @@ export default function WorkflowsPage() {
         actions={
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm"><Plus className="h-4 w-4 mr-1" /> New Workflow</Button>
+              <Button size="sm">
+                <Plus className="h-4 w-4 mr-1" /> New Workflow
+              </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
@@ -108,7 +117,9 @@ export default function WorkflowsPage() {
                 <div className="space-y-2">
                   <Label>Name</Label>
                   <Input {...register("name")} placeholder="My Workflow" />
-                  {formErrors.name && <p className="text-xs text-destructive">{String(formErrors.name.message)}</p>}
+                  {formErrors.name && (
+                    <p className="text-xs text-destructive">{String(formErrors.name.message)}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Description</Label>
@@ -128,10 +139,19 @@ export default function WorkflowsPage() {
         <Input
           placeholder="Search workflows…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
           className="max-w-xs"
         />
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select
+          value={statusFilter}
+          onValueChange={(value) => {
+            setStatusFilter(value);
+            setPage(1);
+          }}
+        >
           <SelectTrigger className="w-40">
             <SelectValue />
           </SelectTrigger>
@@ -144,7 +164,7 @@ export default function WorkflowsPage() {
         </Select>
       </div>
 
-      {filtered.length === 0 ? (
+      {totalCount === 0 ? (
         <EmptyState
           icon={GitBranch}
           title="No workflows yet"
@@ -153,44 +173,87 @@ export default function WorkflowsPage() {
           onAction={() => setDialogOpen(true)}
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((def) => (
-            <Card key={def.id} className="hover:border-primary/30 transition-colors cursor-pointer" onClick={() => navigate(`/workflows/${def.id}`)}>
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h3 className="font-semibold">{def.name}</h3>
-                    <p className="text-xs text-muted-foreground">v{def.currentVersion}</p>
-                  </div>
-                  <StatusBadge status={def.status} />
-                </div>
-                {def.description && (
-                  <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{def.description}</p>
-                )}
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">{formatDate(def.createdAt)}</span>
-                  <div className="flex gap-1">
-                    <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); navigate(`/workflows/${def.id}`); }}>
-                      Open Designer
-                    </Button>
-                    {isAdmin && def.status === "draft" && (
-                      <ConfirmDialog
-                        title="Delete Workflow"
-                        description={`Are you sure you want to delete "${def.name}"?`}
-                        confirmLabel="Delete"
-                        onConfirm={() => deleteMutation.mutate(def.id)}
-                        trigger={
-                          <Button size="sm" variant="ghost" onClick={(e) => e.stopPropagation()}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        }
-                      />
+        <div className="space-y-6">
+          {filtered.length === 0 ? (
+            <div className="rounded-lg border border-dashed bg-card px-6 py-10 text-center text-sm text-muted-foreground">
+              No workflows match your search on this page.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filtered.map((def) => (
+                <Card
+                  key={def.id}
+                  className="hover:border-primary/30 transition-colors cursor-pointer"
+                  onClick={() => navigate(`/workflows/${def.id}`)}
+                >
+                  <CardContent className="p-5">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h3 className="font-semibold">{def.name}</h3>
+                        <p className="text-xs text-muted-foreground">v{def.currentVersion}</p>
+                      </div>
+                      <StatusBadge status={def.status} />
+                    </div>
+                    {def.description && (
+                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{def.description}</p>
                     )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">{formatDate(def.createdAt)}</span>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/workflows/${def.id}`);
+                          }}
+                        >
+                          Open Designer
+                        </Button>
+                        {isAdmin && def.status === "draft" && (
+                          <ConfirmDialog
+                            title="Delete Workflow"
+                            description={`Are you sure you want to delete "${def.name}"?`}
+                            confirmLabel="Delete"
+                            onConfirm={() => deleteMutation.mutate(def.id)}
+                            trigger={
+                              <Button size="sm" variant="ghost" onClick={(e) => e.stopPropagation()}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            }
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {totalCount > pageSize && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalCount)} of {totalCount}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setPage(page - 1)} disabled={page <= 1}>
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {page} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(page + 1)}
+                  disabled={page >= totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
