@@ -8,6 +8,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { queryClient } from "@/lib/query-client";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { AppShell } from "@/components/layout/AppShell";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AdminRoute } from "@/components/auth/AdminRoute";
@@ -44,6 +45,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <ThemeToggle />
         <BrowserRouter>
           <Routes>
             {/* Public routes */}
