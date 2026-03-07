@@ -183,21 +183,34 @@ export default function InstanceDetailPage() {
                 <p className="text-sm text-muted-foreground">No actions available.</p>
               ) : (
                 <div className="space-y-2">
-                  {allowed?.map((t, i) => (
-                    <div key={t.id}>
-                      <Button
-                        variant={i === 0 ? "default" : "outline"}
-                        className="w-full justify-start"
-                        onClick={() => openExecDialog(t)}
-                      >
-                        <ArrowRight className="h-4 w-4 mr-2" />
-                        {t.name}
-                      </Button>
-                      {t.requiresComment && (
-                        <p className="text-xs text-muted-foreground ml-10 mt-0.5">(Comment required)</p>
-                      )}
-                    </div>
-                  ))}
+                  {allowed?.map((t, i) => {
+                    /* Cycle through distinct accessible colors for each action button */
+                    const actionColors = [
+                      "bg-primary text-primary-foreground hover:bg-primary/90",
+                      "bg-status-completed text-primary-foreground hover:bg-status-completed/90",
+                      "bg-status-active text-primary-foreground hover:bg-status-active/90",
+                      "bg-status-draft text-primary-foreground hover:bg-status-draft/90",
+                    ];
+                    const colorClass = actionColors[i % actionColors.length];
+                    return (
+                      <div key={t.id}>
+                        <Button
+                          variant="default"
+                          className={`w-full justify-start ${colorClass}`}
+                          onClick={() => openExecDialog(t)}
+                        >
+                          <ArrowRight className="h-4 w-4 mr-2" />
+                          {t.name}
+                          {t.toStateName && (
+                            <span className="ml-auto text-xs opacity-80">→ {t.toStateName}</span>
+                          )}
+                        </Button>
+                        {t.requiresComment && (
+                          <p className="text-xs text-muted-foreground ml-10 mt-0.5">(Comment required)</p>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 

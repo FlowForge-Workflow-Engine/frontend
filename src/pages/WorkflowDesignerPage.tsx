@@ -20,9 +20,7 @@ import { apiClient } from "@/lib/api-client";
 import { unwrap, unwrapList } from "@/lib/api-helpers";
 import { queryKeys } from "@/lib/query-keys";
 import { useWorkflowDesignerStore } from "@/stores/workflow-designer-store";
-import { PageHeader } from "@/components/common/PageHeader";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
-import { ErrorMessage } from "@/components/common/ErrorMessage";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { Button } from "@/components/ui/button";
@@ -41,19 +39,33 @@ import {
 import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Badge } from "@/components/ui/badge";
 import {
-  AlertTriangle, ChevronDown, Edit, Plus, Rocket, Trash2, ArrowRight,
+  AlertTriangle, ChevronDown, Edit, Plus, Rocket, Trash2, ArrowRight, Shield, Settings2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/utils/error-messages";
 import { formatDateTime } from "@/utils/format-date";
 import type {
   WorkflowDefinition, WorkflowState, WorkflowTransition,
-  TransitionRule, FormSchemaField, Role, WorkflowVersion,
+  TransitionRule, FormSchemaField, Role, WorkflowVersion, RuleMetadata,
 } from "@/types/api";
 
 /** Color palette for state nodes */
 const stateColors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
+
+/** Expression operators from rule metadata */
+const EXPRESSION_OPERATORS = [
+  "equal", "notEqual", "lessThan", "lessThanInclusive",
+  "greaterThan", "greaterThanInclusive", "in", "notIn", "contains", "doesNotContain",
+];
+
+interface ConditionRow {
+  fact: string;
+  path: string;
+  operator: string;
+  value: string;
+}
 
 export default function WorkflowDesignerPage() {
   const { id } = useParams<{ id: string }>();
@@ -79,6 +91,21 @@ export default function WorkflowDesignerPage() {
   const [transFrom, setTransFrom] = useState("");
   const [transTo, setTransTo] = useState("");
   const [transComment, setTransComment] = useState(false);
+
+  // Rules state
+  const [expandedTransId, setExpandedTransId] = useState<string | null>(null);
+  const [ruleDialogOpen, setRuleDialogOpen] = useState(false);
+  const [ruleTransitionId, setRuleTransitionId] = useState<string | null>(null);
+
+  // Rule builder form
+  const [ruleName, setRuleName] = useState("");
+  const [ruleOrder, setRuleOrder] = useState(0);
+  const [ruleType, setRuleType] = useState<"expression" | "custom">("expression");
+  const [logicalOp, setLogicalOp] = useState<"all" | "any">("all");
+  const [conditions, setConditions] = useState<ConditionRow[]>([{ fact: "", path: "", operator: "equal", value: "" }]);
+  const [customStrategy, setCustomStrategy] = useState("");
+  const [customParams, setCustomParams] = useState("{}");
+  const [rulePreviewOpen, setRulePreviewOpen] = useState(false);
 
   // Fetch definition
   const { data: defData, isLoading: defLoading } = useQuery({
@@ -121,6 +148,20 @@ export default function WorkflowDesignerPage() {
     queryFn: () => apiClient.get("/api/v1/roles").then((r) => r.data.data as Role[]),
   });
 
+  // Fetch rule metadata (cached globally)
+  const { data: ruleMetadata } = useQuery({
+    queryKey: queryKeys.ruleMetadata.all(),
+    queryFn: () => apiClient.get("/api/v1/workflow-rules/metadata").then((r) => unwrap<RuleMetadata>(r)),
+    staleTime: 1000 * 60 * 30,
+  });
+
+  // Fetch rules for expanded transition
+  const { data: rulesData, isLoading: rulesLoading } = useQuery({
+    queryKey: queryKeys.workflowDefinitions.rules(id!, expandedTransId!),
+    queryFn: () => apiClient.get(`/api/v1/workflow-definitions/${id}/transitions/${expandedTransId}/rules`).then((r) => r.data.data as TransitionRule[]),
+    enabled: !!id && !!expandedTransId,
+  });
+
   // Update store
   useEffect(() => {
     if (defData) store.setDefinition(defData);
@@ -134,6 +175,9 @@ export default function WorkflowDesignerPage() {
   useEffect(() => {
     if (schemaData) store.setFormSchema(schemaData.fields || []);
   }, [schemaData]);
+  useEffect(() => {
+    if (ruleMetadata) store.setRuleMetadata(ruleMetadata);
+  }, [ruleMetadata]);
 
   const isDraft = defData?.status === "draft";
   const states = statesData?.items ?? [];
@@ -208,6 +252,29 @@ export default function WorkflowDesignerPage() {
     onError: (e) => toast.error(getErrorMessage(e)),
   });
 
+  const addRuleMut = useMutation({
+    mutationFn: (body: any) => apiClient.post(`/api/v1/workflow-definitions/${id}/transitions/${ruleTransitionId}/rules`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.rules(id!, ruleTransitionId!) });
+      qc.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.formSchema(id!) });
+      setRuleDialogOpen(false);
+      resetRuleForm();
+      toast.success("Rule added");
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
+  const deleteRuleMut = useMutation({
+    mutationFn: ({ transitionId, ruleId }: { transitionId: string; ruleId: string }) =>
+      apiClient.delete(`/api/v1/workflow-definitions/${id}/transitions/${transitionId}/rules/${ruleId}`),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.rules(id!, vars.transitionId) });
+      qc.invalidateQueries({ queryKey: queryKeys.workflowDefinitions.formSchema(id!) });
+      toast.success("Rule deleted");
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
   const publishMut = useMutation({
     mutationFn: () => apiClient.post(`/api/v1/workflow-definitions/${id}/publish`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["workflow-definitions"] }); toast.success("Workflow published!"); },
@@ -222,6 +289,11 @@ export default function WorkflowDesignerPage() {
 
   const resetStateForm = () => { setStateName(""); setStateDesc(""); setStateIsInitial(false); setStateIsTerminal(false); setStateColor(stateColors[0]); };
   const resetTransForm = () => { setTransName(""); setTransFrom(""); setTransTo(""); setTransComment(false); };
+  const resetRuleForm = () => {
+    setRuleName(""); setRuleOrder(0); setRuleType("expression"); setLogicalOp("all");
+    setConditions([{ fact: "", path: "", operator: "equal", value: "" }]);
+    setCustomStrategy(""); setCustomParams("{}"); setRulePreviewOpen(false);
+  };
 
   const handleEditState = (s: WorkflowState) => {
     setEditingState(s);
@@ -233,7 +305,57 @@ export default function WorkflowDesignerPage() {
     setEditStateOpen(true);
   };
 
+  const openRuleDialog = (transitionId: string) => {
+    resetRuleForm();
+    setRuleTransitionId(transitionId);
+    setRuleDialogOpen(true);
+  };
+
+  /** Build ruleDefinition JSON from form state */
+  const buildRuleDefinition = () => {
+    if (ruleType === "custom") {
+      try {
+        return { strategy: customStrategy, params: JSON.parse(customParams) };
+      } catch {
+        return { strategy: customStrategy, params: {} };
+      }
+    }
+    // Expression type
+    const condArray = conditions
+      .filter((c) => c.fact && c.operator)
+      .map((c) => {
+        const cond: any = { fact: c.fact, operator: c.operator, value: c.value };
+        if (c.path) cond.path = c.path;
+        // Auto-convert numeric values
+        if (!isNaN(Number(c.value)) && c.value.trim() !== "") {
+          cond.value = Number(c.value);
+        }
+        return cond;
+      });
+    return { [logicalOp]: condArray };
+  };
+
+  const handleSubmitRule = () => {
+    addRuleMut.mutate({
+      ruleName,
+      evaluationOrder: ruleOrder,
+      ruleDefinition: buildRuleDefinition(),
+    });
+  };
+
+  // Condition row helpers
+  const updateCondition = (idx: number, field: keyof ConditionRow, value: string) => {
+    setConditions((prev) => prev.map((c, i) => i === idx ? { ...c, [field]: value } : c));
+  };
+  const addConditionRow = () => setConditions((prev) => [...prev, { fact: "", path: "", operator: "equal", value: "" }]);
+  const removeConditionRow = (idx: number) => setConditions((prev) => prev.filter((_, i) => i !== idx));
+
   if (defLoading || statesLoading || transLoading) return <LoadingSpinner />;
+
+  const facts = ruleMetadata?.facts ?? ["payload", "instance", "user"];
+  const operators = ruleMetadata?.expressionOperators ?? EXPRESSION_OPERATORS;
+  const customStrategies = ruleMetadata?.customStrategies ?? [];
+  const systemPaths = ruleMetadata?.systemPaths ?? [];
 
   return (
     <div className="h-[calc(100vh-3.5rem)] flex flex-col -m-6">
@@ -275,7 +397,7 @@ export default function WorkflowDesignerPage() {
         </div>
       )}
 
-      <Tabs defaultValue="design" className="flex-1 flex flex-col">
+      <Tabs defaultValue="design" className="flex-1 flex flex-col min-h-0">
         <TabsList className="mx-6 mt-2 w-fit">
           <TabsTrigger value="design">Design</TabsTrigger>
           <TabsTrigger value="form-schema">Form Schema</TabsTrigger>
@@ -338,24 +460,85 @@ export default function WorkflowDesignerPage() {
                 {transitions.map((t) => {
                   const from = states.find((s) => s.id === t.fromStateId);
                   const to = states.find((s) => s.id === t.toStateId);
+                  const isExpanded = expandedTransId === t.id;
+                  const transRules = isExpanded ? (rulesData ?? []) : [];
                   return (
-                    <div key={t.id} className="p-2 rounded-lg bg-muted/50 text-sm">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{t.name}</span>
-                        {isDraft && (
-                          <ConfirmDialog
-                            title="Delete Transition"
-                            description={`Delete "${t.name}"?`}
-                            confirmLabel="Delete"
-                            onConfirm={() => deleteTransMut.mutate(t.id)}
-                            trigger={<button className="p-1 hover:bg-accent rounded"><Trash2 className="h-3 w-3 text-destructive" /></button>}
-                          />
-                        )}
+                    <div key={t.id} className="rounded-lg bg-muted/50 text-sm overflow-hidden">
+                      <div className="p-2">
+                        <div className="flex items-center justify-between">
+                          <button
+                            className="font-medium text-left flex-1 hover:text-primary transition-colors"
+                            onClick={() => setExpandedTransId(isExpanded ? null : t.id)}
+                          >
+                            {t.name}
+                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setExpandedTransId(isExpanded ? null : t.id)}
+                              className="p-1 hover:bg-accent rounded"
+                              title="Show rules"
+                            >
+                              <Settings2 className={`h-3 w-3 transition-colors ${isExpanded ? "text-primary" : ""}`} />
+                            </button>
+                            {isDraft && (
+                              <ConfirmDialog
+                                title="Delete Transition"
+                                description={`Delete "${t.name}"?`}
+                                confirmLabel="Delete"
+                                onConfirm={() => deleteTransMut.mutate(t.id)}
+                                trigger={<button className="p-1 hover:bg-accent rounded"><Trash2 className="h-3 w-3 text-destructive" /></button>}
+                              />
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                          {from?.name || "?"} <ArrowRight className="h-3 w-3" /> {to?.name || "?"}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          {t.requiresComment && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">Comment required</span>}
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        {from?.name || "?"} <ArrowRight className="h-3 w-3" /> {to?.name || "?"}
-                      </p>
-                      {t.requiresComment && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground mt-1 inline-block">Comment required</span>}
+
+                      {/* Rules sub-panel */}
+                      {isExpanded && (
+                        <div className="border-t bg-background/50 p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                              Rules for {t.name}
+                            </h4>
+                            {isDraft && (
+                              <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => openRuleDialog(t.id)}>
+                                <Plus className="h-3 w-3 mr-1" /> Add Rule
+                              </Button>
+                            )}
+                          </div>
+                          {rulesLoading ? (
+                            <p className="text-xs text-muted-foreground">Loading rules…</p>
+                          ) : transRules.length === 0 ? (
+                            <p className="text-xs text-muted-foreground italic">No rules defined. Transition will always be allowed.</p>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {transRules.map((rule) => (
+                                <div key={rule.id} className="flex items-center justify-between p-2 rounded bg-muted/70 text-xs">
+                                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    <Badge variant="secondary" className="text-[10px] shrink-0">#{rule.evaluationOrder}</Badge>
+                                    <span className="font-medium truncate">{rule.ruleName}</span>
+                                  </div>
+                                  {isDraft && (
+                                    <ConfirmDialog
+                                      title="Delete Rule"
+                                      description={`Delete rule "${rule.ruleName}"?`}
+                                      confirmLabel="Delete"
+                                      onConfirm={() => deleteRuleMut.mutate({ transitionId: t.id, ruleId: rule.id })}
+                                      trigger={<button className="p-1 hover:bg-accent rounded shrink-0"><Trash2 className="h-3 w-3 text-destructive" /></button>}
+                                    />
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -364,7 +547,7 @@ export default function WorkflowDesignerPage() {
           </div>
 
           {/* ReactFlow Diagram */}
-          <div className="flex-1">
+          <div className="flex-1 reactflow-wrapper">
             <ReactFlow
               nodes={nodes}
               edges={edges}
@@ -381,7 +564,7 @@ export default function WorkflowDesignerPage() {
         </TabsContent>
 
         {/* Form Schema Tab */}
-        <TabsContent value="form-schema" className="p-6 overflow-y-auto">
+        <TabsContent value="form-schema" className="flex-1 overflow-y-auto p-6">
           <h3 className="text-lg font-semibold mb-2">Instance Form Schema</h3>
           <p className="text-sm text-muted-foreground mb-4">These fields are collected when creating a workflow instance.</p>
           {(schemaData?.fields?.length ?? 0) === 0 ? (
@@ -389,7 +572,7 @@ export default function WorkflowDesignerPage() {
           ) : (
             <div className="rounded-lg border bg-card">
               <table className="w-full text-sm">
-                <thead><tr className="border-b"><th className="px-4 py-2 text-left">Key</th><th className="px-4 py-2 text-left">Type</th><th className="px-4 py-2 text-left">Label</th><th className="px-4 py-2 text-left">Required</th></tr></thead>
+                <thead><tr className="border-b"><th className="px-4 py-2 text-left font-medium text-muted-foreground">Key</th><th className="px-4 py-2 text-left font-medium text-muted-foreground">Type</th><th className="px-4 py-2 text-left font-medium text-muted-foreground">Label</th><th className="px-4 py-2 text-left font-medium text-muted-foreground">Required</th></tr></thead>
                 <tbody>
                   {schemaData?.fields?.map((f) => (
                     <tr key={f.key} className="border-b last:border-0">
@@ -406,20 +589,27 @@ export default function WorkflowDesignerPage() {
         </TabsContent>
 
         {/* Versions Tab */}
-        <TabsContent value="versions" className="p-6 overflow-y-auto">
+        <TabsContent value="versions" className="flex-1 overflow-y-auto p-6">
           <h3 className="text-lg font-semibold mb-4">Versions</h3>
           {(versionsData?.items?.length ?? 0) === 0 ? (
             <p className="text-sm text-muted-foreground">No published versions yet.</p>
           ) : (
             <div className="rounded-lg border bg-card">
               <table className="w-full text-sm">
-                <thead><tr className="border-b"><th className="px-4 py-2 text-left">Version</th><th className="px-4 py-2 text-left">Published By</th><th className="px-4 py-2 text-left">Published At</th></tr></thead>
+                <thead><tr className="border-b"><th className="px-4 py-2 text-left font-medium text-muted-foreground">Version</th><th className="px-4 py-2 text-left font-medium text-muted-foreground">Published By</th><th className="px-4 py-2 text-left font-medium text-muted-foreground">Published At</th><th className="px-4 py-2 text-left font-medium text-muted-foreground">Status</th></tr></thead>
                 <tbody>
-                  {versionsData?.items?.map((v) => (
-                    <tr key={v.id} className="border-b last:border-0">
-                      <td className="px-4 py-2 font-medium">v{v.versionNumber}</td>
-                      <td className="px-4 py-2 font-mono text-xs">{v.publishedBy?.slice(0, 8)}…</td>
-                      <td className="px-4 py-2">{formatDateTime(v.publishedAt)}</td>
+                  {versionsData?.items?.map((v, i) => (
+                    <tr key={v.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                      <td className="px-4 py-3 font-medium">v{v.versionNumber}</td>
+                      <td className="px-4 py-3 font-mono text-xs">{v.publishedBy?.slice(0, 8)}…</td>
+                      <td className="px-4 py-3">{formatDateTime(v.publishedAt)}</td>
+                      <td className="px-4 py-3">
+                        {v.versionNumber === defData?.currentVersion ? (
+                          <Badge variant="default" className="text-[10px]">Active</Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-[10px]">Previous</Badge>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -533,6 +723,187 @@ export default function WorkflowDesignerPage() {
             </label>
             <Button className="w-full" disabled={addTransMut.isPending || !transName || !transFrom || !transTo} onClick={() => addTransMut.mutate({ name: transName, fromStateId: transFrom, toStateId: transTo, requiresComment: transComment, allowedRoleIds: [] })}>
               {addTransMut.isPending ? "Adding…" : "Add Transition"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rule Builder Dialog */}
+      <Dialog open={ruleDialogOpen} onOpenChange={setRuleDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Add Rule</DialogTitle></DialogHeader>
+          <div className="space-y-5">
+            {/* Rule Name */}
+            <div className="space-y-2">
+              <Label>Rule Name</Label>
+              <Input value={ruleName} onChange={(e) => setRuleName(e.target.value)} placeholder="e.g. amount_exceeds_limit" />
+            </div>
+
+            {/* Evaluation Order */}
+            <div className="space-y-2">
+              <Label>Evaluation Order</Label>
+              <Input type="number" value={ruleOrder} onChange={(e) => setRuleOrder(Number(e.target.value))} min={0} />
+            </div>
+
+            {/* Rule Type */}
+            <div className="space-y-2">
+              <Label>Rule Type</Label>
+              <div className="flex gap-3">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="radio" name="ruleType" checked={ruleType === "expression"} onChange={() => setRuleType("expression")} className="accent-primary" />
+                  Expression
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="radio" name="ruleType" checked={ruleType === "custom"} onChange={() => setRuleType("custom")} className="accent-primary" />
+                  Custom
+                </label>
+              </div>
+            </div>
+
+            {/* Expression Builder */}
+            {ruleType === "expression" && (
+              <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs">Logical operator:</Label>
+                  <Select value={logicalOp} onValueChange={(v: "all" | "any") => setLogicalOp(v)}>
+                    <SelectTrigger className="w-64 h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">ALL of these must pass</SelectItem>
+                      <SelectItem value="any">ANY of these must pass</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Conditions */}
+                <div className="space-y-2">
+                  {conditions.map((cond, idx) => (
+                    <div key={idx} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 items-end">
+                      <div>
+                        {idx === 0 && <Label className="text-[10px] text-muted-foreground">Fact</Label>}
+                        <Select value={cond.fact} onValueChange={(v) => updateCondition(idx, "fact", v)}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Fact" /></SelectTrigger>
+                          <SelectContent>
+                            {facts.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        {idx === 0 && <Label className="text-[10px] text-muted-foreground">Path</Label>}
+                        <Input
+                          className="h-8 text-xs"
+                          value={cond.path}
+                          onChange={(e) => updateCondition(idx, "path", e.target.value)}
+                          placeholder={cond.fact === "payload" ? "$.fieldName" : ""}
+                        />
+                      </div>
+                      <div>
+                        {idx === 0 && <Label className="text-[10px] text-muted-foreground">Operator</Label>}
+                        <Select value={cond.operator} onValueChange={(v) => updateCondition(idx, "operator", v)}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {operators.map((op) => <SelectItem key={op} value={op}>{op}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        {idx === 0 && <Label className="text-[10px] text-muted-foreground">Value</Label>}
+                        <Input
+                          className="h-8 text-xs"
+                          value={cond.value}
+                          onChange={(e) => updateCondition(idx, "value", e.target.value)}
+                          placeholder="Value"
+                        />
+                      </div>
+                      <button
+                        onClick={() => removeConditionRow(idx)}
+                        className="p-1.5 hover:bg-accent rounded text-muted-foreground hover:text-destructive disabled:opacity-30"
+                        disabled={conditions.length === 1}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                  <Button size="sm" variant="ghost" className="text-xs h-7" onClick={addConditionRow}>
+                    <Plus className="h-3 w-3 mr-1" /> Add Condition
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Custom Rule Builder */}
+            {ruleType === "custom" && (
+              <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
+                <div className="space-y-2">
+                  <Label className="text-xs">Strategy</Label>
+                  <Select value={customStrategy} onValueChange={setCustomStrategy}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select strategy" /></SelectTrigger>
+                    <SelectContent>
+                      {customStrategies.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Special UI for user-has-any-role strategy */}
+                {customStrategy === "user-has-any-role" && rolesData ? (
+                  <div className="space-y-2">
+                    <Label className="text-xs">Allowed Roles</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {rolesData.map((role) => {
+                        let params: any = {};
+                        try { params = JSON.parse(customParams); } catch {}
+                        const roleIds: string[] = params.roleIds ?? [];
+                        const isSelected = roleIds.includes(role.id);
+                        return (
+                          <label key={role.id} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={(checked) => {
+                                const next = checked
+                                  ? [...roleIds, role.id]
+                                  : roleIds.filter((r) => r !== role.id);
+                                setCustomParams(JSON.stringify({ roleIds: next }));
+                              }}
+                            />
+                            {role.name}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label className="text-xs">Params (JSON)</Label>
+                    <Textarea
+                      className="font-mono text-xs h-24"
+                      value={customParams}
+                      onChange={(e) => setCustomParams(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Rule Preview */}
+            <Collapsible open={rulePreviewOpen} onOpenChange={setRulePreviewOpen}>
+              <CollapsibleTrigger className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                <ChevronDown className={`h-3 w-3 transition-transform ${rulePreviewOpen ? "rotate-180" : ""}`} />
+                Preview ruleDefinition JSON
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-2">
+                <pre className="p-3 rounded-lg bg-muted text-xs font-mono overflow-x-auto max-h-40">
+                  {JSON.stringify(buildRuleDefinition(), null, 2)}
+                </pre>
+              </CollapsibleContent>
+            </Collapsible>
+
+            <Button
+              className="w-full"
+              disabled={addRuleMut.isPending || !ruleName || (ruleType === "expression" && conditions.every((c) => !c.fact)) || (ruleType === "custom" && !customStrategy)}
+              onClick={handleSubmitRule}
+            >
+              {addRuleMut.isPending ? "Adding…" : "Add Rule"}
             </Button>
           </div>
         </DialogContent>
