@@ -12,11 +12,8 @@ import {
   Bell,
   Webhook,
   LogOut,
-  Sun,
-  Moon,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-store";
-import { useTheme } from "@/components/ThemeProvider";
 import { cn } from "@/lib/utils";
 
 /** Navigation items for the sidebar */
@@ -37,7 +34,6 @@ const adminNavItems = [
 export function Sidebar() {
   const location = useLocation();
   const { user, logout } = useAuthStore();
-  const { theme, toggleTheme } = useTheme();
   const isAdmin = user?.roles.includes("Admin");
 
   const isActive = (path: string) =>
@@ -103,15 +99,8 @@ export function Sidebar() {
         )}
       </nav>
 
-      {/* Bottom — User + Theme */}
+      {/* Bottom — User */}
       <div className="border-t border-sidebar-border p-3 space-y-2">
-        <button
-          onClick={toggleTheme}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent transition-colors"
-        >
-          {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-          {theme === "light" ? "Dark Mode" : "Light Mode"}
-        </button>
         <div className="flex items-center justify-between px-3 py-2">
           <div className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold">
