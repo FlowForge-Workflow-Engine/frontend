@@ -7,7 +7,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { unwrap } from "@/lib/api-helpers";
 import { queryKeys } from "@/lib/query-keys";
-import { PageHeader } from "@/components/common/PageHeader";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { CopyableId } from "@/components/common/CopyableId";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
@@ -16,17 +15,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Plus, ArrowRight, CheckCircle, XCircle, Play, Ban,
-} from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Plus, ArrowRight, CheckCircle, XCircle, Play, Ban } from "lucide-react";
 import { formatDateTime } from "@/utils/format-date";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/utils/error-messages";
 import type { WorkflowInstance, AllowedTransition, AuditLog } from "@/types/api";
-
 
 /** Generate a simple UUID without external lib */
 function genUUID() {
@@ -55,7 +49,10 @@ export default function InstanceDetailPage() {
   // Fetch allowed transitions (raw array, NOT wrapped)
   const { data: allowed } = useQuery({
     queryKey: queryKeys.workflowInstances.allowedTransitions(id!),
-    queryFn: () => apiClient.get(`/api/v1/workflow-instances/${id}/allowed-transitions`).then((r) => r.data as AllowedTransition[]),
+    queryFn: () =>
+      apiClient
+        .get(`/api/v1/workflow-instances/${id}/allowed-transitions`)
+        .then((r) => r.data as AllowedTransition[]),
     enabled: !!id && instance?.status === "active",
   });
 
@@ -69,12 +66,19 @@ export default function InstanceDetailPage() {
 
   // Execute transition
   const execMutation = useMutation({
-    mutationFn: (body: { transitionId: string; lastKnownVersion: number; comment?: string; idempotencyKey: string }) =>
-      apiClient.post(`/api/v1/workflow-instances/${id}/transitions`, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.workflowInstances.detail(id!) });
-      qc.invalidateQueries({ queryKey: queryKeys.workflowInstances.allowedTransitions(id!) });
-      qc.invalidateQueries({ queryKey: queryKeys.workflowInstances.auditLogs(id!, { page: auditPage }) });
+    mutationFn: (body: {
+      transitionId: string;
+      lastKnownVersion: number;
+      comment?: string;
+      idempotencyKey: string;
+    }) => apiClient.post(`/api/v1/workflow-instances/${id}/transitions`, body),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["workflow-instances", "list"] }),
+        qc.invalidateQueries({ queryKey: queryKeys.workflowInstances.detail(id!) }),
+        qc.invalidateQueries({ queryKey: queryKeys.workflowInstances.allowedTransitions(id!) }),
+        qc.invalidateQueries({ queryKey: queryKeys.workflowInstances.auditLogs(id!, { page: auditPage }) }),
+      ]);
       setExecDialog(null);
       setComment("");
       toast.success(`Transitioned to ${execDialog?.toStateName || "next state"}`);
@@ -93,8 +97,11 @@ export default function InstanceDetailPage() {
   // Cancel instance
   const cancelMutation = useMutation({
     mutationFn: () => apiClient.post(`/api/v1/workflow-instances/${id}/cancel`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.workflowInstances.detail(id!) });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["workflow-instances", "list"] }),
+        qc.invalidateQueries({ queryKey: queryKeys.workflowInstances.detail(id!) }),
+      ]);
       toast.success("Instance cancelled");
     },
     onError: (e) => toast.error(getErrorMessage(e)),
@@ -112,21 +119,31 @@ export default function InstanceDetailPage() {
 
   const actionIcon = (actionType: string) => {
     switch (actionType) {
-      case "instance_created": return <Plus className="h-4 w-4 text-status-active" />;
-      case "transition_executed": return <ArrowRight className="h-4 w-4 text-status-completed" />;
-      case "instance_completed": return <CheckCircle className="h-4 w-4 text-status-active" />;
-      case "instance_cancelled": return <XCircle className="h-4 w-4 text-destructive" />;
-      default: return <Play className="h-4 w-4" />;
+      case "instance_created":
+        return <Plus className="h-4 w-4 text-status-active" />;
+      case "transition_executed":
+        return <ArrowRight className="h-4 w-4 text-status-completed" />;
+      case "instance_completed":
+        return <CheckCircle className="h-4 w-4 text-status-active" />;
+      case "instance_cancelled":
+        return <XCircle className="h-4 w-4 text-destructive" />;
+      default:
+        return <Play className="h-4 w-4" />;
     }
   };
 
   const actionLabel = (log: AuditLog) => {
     switch (log.actionType) {
-      case "instance_created": return "Instance created";
-      case "transition_executed": return `${log.fromState} → ${log.toState} via ${log.transitionName}`;
-      case "instance_completed": return "Workflow completed";
-      case "instance_cancelled": return "Instance cancelled";
-      default: return log.actionType;
+      case "instance_created":
+        return "Instance created";
+      case "transition_executed":
+        return `${log.fromState} → ${log.toState} via ${log.transitionName}`;
+      case "instance_completed":
+        return "Workflow completed";
+      case "instance_cancelled":
+        return "Instance cancelled";
+      default:
+        return log.actionType;
     }
   };
 
@@ -144,9 +161,7 @@ export default function InstanceDetailPage() {
             {instance.currentStateName}
           </span>
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          Created {formatDateTime(instance.createdAt)}
-        </p>
+        <p className="text-xs text-muted-foreground mt-2">Created {formatDateTime(instance.createdAt)}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -154,7 +169,9 @@ export default function InstanceDetailPage() {
         <div className="lg:col-span-3 space-y-6">
           {/* Payload Card */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Instance Data</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Instance Data</CardTitle>
+            </CardHeader>
             <CardContent>
               {Object.keys(instance.payload).length === 0 ? (
                 <p className="text-sm text-muted-foreground">No payload data.</p>
@@ -164,7 +181,13 @@ export default function InstanceDetailPage() {
                     <div key={key} className="flex justify-between py-1.5 border-b last:border-0">
                       <span className="text-sm font-medium capitalize">{key}</span>
                       <span className="text-sm text-muted-foreground">
-                        {typeof val === "boolean" ? (val ? "Yes" : "No") : typeof val === "number" ? val.toLocaleString() : String(val)}
+                        {typeof val === "boolean"
+                          ? val
+                            ? "Yes"
+                            : "No"
+                          : typeof val === "number"
+                            ? val.toLocaleString()
+                            : String(val)}
                       </span>
                     </div>
                   ))}
@@ -175,10 +198,14 @@ export default function InstanceDetailPage() {
 
           {/* Allowed Actions */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Available Actions</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Available Actions</CardTitle>
+            </CardHeader>
             <CardContent>
               {instance.status !== "active" ? (
-                <p className="text-sm text-muted-foreground">This instance is {instance.status} and can no longer be transitioned.</p>
+                <p className="text-sm text-muted-foreground">
+                  This instance is {instance.status} and can no longer be transitioned.
+                </p>
               ) : (allowed?.length ?? 0) === 0 ? (
                 <p className="text-sm text-muted-foreground">No actions available.</p>
               ) : (
@@ -236,7 +263,9 @@ export default function InstanceDetailPage() {
         {/* Right — Audit Log Timeline (40%) */}
         <div className="lg:col-span-2">
           <Card>
-            <CardHeader><CardTitle className="text-base">Activity Timeline</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Activity Timeline</CardTitle>
+            </CardHeader>
             <CardContent>
               {auditLogs.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No activity yet.</p>
@@ -262,7 +291,12 @@ export default function InstanceDetailPage() {
                     </div>
                   ))}
                   {auditData && auditData.count > auditPage * 20 && (
-                    <Button variant="ghost" size="sm" className="w-full" onClick={() => setAuditPage((p) => p + 1)}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => setAuditPage((p) => p + 1)}
+                    >
                       Load more
                     </Button>
                   )}
@@ -287,9 +321,7 @@ export default function InstanceDetailPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>
-                Comment {execDialog?.requiresComment ? "(required)" : "(optional)"}
-              </Label>
+              <Label>Comment {execDialog?.requiresComment ? "(required)" : "(optional)"}</Label>
               <Textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
@@ -301,10 +333,7 @@ export default function InstanceDetailPage() {
 
             <Button
               className="w-full"
-              disabled={
-                execMutation.isPending ||
-                (execDialog?.requiresComment && !comment.trim())
-              }
+              disabled={execMutation.isPending || (execDialog?.requiresComment && !comment.trim())}
               onClick={() =>
                 execMutation.mutate({
                   transitionId: execDialog!.id,

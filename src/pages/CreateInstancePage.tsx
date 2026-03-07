@@ -3,7 +3,7 @@
  */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { unwrap } from "@/lib/api-helpers";
 import { queryKeys } from "@/lib/query-keys";
@@ -22,6 +22,7 @@ import type { WorkflowDefinition, FormSchemaField, WorkflowInstance } from "@/ty
 
 export default function CreateInstancePage() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const [selectedDef, setSelectedDef] = useState<WorkflowDefinition | null>(null);
   const [payload, setPayload] = useState<Record<string, any>>({});
 
@@ -35,17 +36,23 @@ export default function CreateInstancePage() {
   // Fetch form schema for selected definition
   const { data: schema, isLoading: schemaLoading } = useQuery({
     queryKey: queryKeys.workflowDefinitions.formSchema(selectedDef?.id ?? ""),
-    queryFn: () => apiClient.get(`/api/v1/workflow-definitions/${selectedDef!.id}/instance-form-schema`).then((r) => unwrap<{ fields: FormSchemaField[] }>(r)),
+    queryFn: () =>
+      apiClient
+        .get(`/api/v1/workflow-definitions/${selectedDef!.id}/instance-form-schema`)
+        .then((r) => unwrap<{ fields: FormSchemaField[] }>(r)),
     enabled: !!selectedDef,
   });
 
   const createMutation = useMutation({
     mutationFn: () =>
-      apiClient.post("/api/v1/workflow-instances", {
-        workflowDefinitionId: selectedDef!.id,
-        payload,
-      }).then((r) => unwrap<WorkflowInstance>(r)),
-    onSuccess: (inst) => {
+      apiClient
+        .post("/api/v1/workflow-instances", {
+          workflowDefinitionId: selectedDef!.id,
+          payload,
+        })
+        .then((r) => unwrap<WorkflowInstance>(r)),
+    onSuccess: async (inst) => {
+      await qc.invalidateQueries({ queryKey: ["workflow-instances", "list"] });
       toast.success("Instance created!");
       navigate(`/instances/${inst.id}`);
     },
@@ -59,10 +66,12 @@ export default function CreateInstancePage() {
   };
 
   // Validate required fields
-  const isValid = fields.filter((f) => f.required).every((f) => {
-    const val = payload[f.key];
-    return val !== undefined && val !== "";
-  });
+  const isValid = fields
+    .filter((f) => f.required)
+    .every((f) => {
+      const val = payload[f.key];
+      return val !== undefined && val !== "";
+    });
 
   if (isLoading) return <LoadingSpinner />;
 
@@ -76,14 +85,23 @@ export default function CreateInstancePage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {defs?.map((d) => (
-              <Card key={d.id} className="cursor-pointer hover:border-primary/30 transition-colors" onClick={() => { setSelectedDef(d); setPayload({}); }}>
+              <Card
+                key={d.id}
+                className="cursor-pointer hover:border-primary/30 transition-colors"
+                onClick={() => {
+                  setSelectedDef(d);
+                  setPayload({});
+                }}
+              >
                 <CardContent className="p-5">
                   <h3 className="font-semibold mb-1">{d.name}</h3>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span>v{d.currentVersion}</span>
                     <StatusBadge status={d.status} />
                   </div>
-                  {d.description && <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{d.description}</p>}
+                  {d.description && (
+                    <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{d.description}</p>
+                  )}
                 </CardContent>
               </Card>
             ))}
@@ -99,14 +117,19 @@ export default function CreateInstancePage() {
       <Button variant="ghost" size="sm" className="mb-4" onClick={() => setSelectedDef(null)}>
         <ArrowLeft className="h-4 w-4 mr-1" /> Back
       </Button>
-      <PageHeader title="Fill Instance Data" subtitle={`Workflow: ${selectedDef.name} v${selectedDef.currentVersion}`} />
+      <PageHeader
+        title="Fill Instance Data"
+        subtitle={`Workflow: ${selectedDef.name} v${selectedDef.currentVersion}`}
+      />
 
       {schemaLoading ? (
         <LoadingSpinner />
       ) : (
         <div className="space-y-4">
           {fields.length === 0 ? (
-            <p className="text-sm text-muted-foreground mb-4">This workflow has no form fields. Click create to start.</p>
+            <p className="text-sm text-muted-foreground mb-4">
+              This workflow has no form fields. Click create to start.
+            </p>
           ) : (
             fields.map((f) => (
               <div key={f.key} className="space-y-2">
@@ -116,17 +139,16 @@ export default function CreateInstancePage() {
                 </Label>
                 {f.type === "boolean" ? (
                   <div className="flex items-center gap-2">
-                    <Checkbox
-                      checked={!!payload[f.key]}
-                      onCheckedChange={(c) => updateField(f.key, !!c)}
-                    />
+                    <Checkbox checked={!!payload[f.key]} onCheckedChange={(c) => updateField(f.key, !!c)} />
                     <span className="text-sm">Yes</span>
                   </div>
                 ) : (
                   <Input
                     type={f.type === "number" ? "number" : "text"}
                     value={payload[f.key] ?? ""}
-                    onChange={(e) => updateField(f.key, f.type === "number" ? Number(e.target.value) : e.target.value)}
+                    onChange={(e) =>
+                      updateField(f.key, f.type === "number" ? Number(e.target.value) : e.target.value)
+                    }
                     placeholder={f.label || f.key}
                   />
                 )}
@@ -134,7 +156,11 @@ export default function CreateInstancePage() {
             ))
           )}
 
-          <Button className="w-full" disabled={createMutation.isPending || !isValid} onClick={() => createMutation.mutate()}>
+          <Button
+            className="w-full"
+            disabled={createMutation.isPending || !isValid}
+            onClick={() => createMutation.mutate()}
+          >
             <Rocket className="h-4 w-4 mr-1" />
             {createMutation.isPending ? "Creating…" : "Create Instance"}
           </Button>
