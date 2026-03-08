@@ -1095,7 +1095,7 @@ export default function WorkflowDesignerPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Name</Label>
+              <Label>Name <span className="text-destructive">*</span></Label>
               <Input value={stateName} onChange={(e) => setStateName(e.target.value)} />
             </div>
             <div className="space-y-2">
