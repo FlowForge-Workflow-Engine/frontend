@@ -151,7 +151,7 @@ export default function RegisterTenantPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Company Slug</Label>
+            <Label>Company Slug <span className="text-destructive">*</span></Label>
             <Input {...register("tenantSlug")} placeholder="acme-corp" />
             {slug && (
               <p className="text-xs text-muted-foreground">
