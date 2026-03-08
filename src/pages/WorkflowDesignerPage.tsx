@@ -894,7 +894,7 @@ export default function WorkflowDesignerPage() {
         </TabsContent>
 
         {/* Form Schema Tab */}
-        <TabsContent value="form-schema" className="flex-1 overflow-y-auto p-6 m-0">
+        <TabsContent value="form-schema" className="flex-1 overflow-y-auto px-6 pt-3 pb-6 m-0">
           <h3 className="text-lg font-semibold mb-2">Instance Form Schema</h3>
           <p className="text-sm text-muted-foreground mb-4">
             These fields are collected when creating a workflow instance.
@@ -930,7 +930,7 @@ export default function WorkflowDesignerPage() {
         </TabsContent>
 
         {/* Versions Tab */}
-        <TabsContent value="versions" className="flex-1 overflow-y-auto p-6 m-0">
+        <TabsContent value="versions" className="flex-1 overflow-y-auto px-6 pt-3 pb-6 m-0">
           <h3 className="text-lg font-semibold mb-4">Versions</h3>
           {(versionsData?.items?.length ?? 0) === 0 ? (
             <p className="text-sm text-muted-foreground">No published versions yet.</p>
@@ -976,10 +976,10 @@ export default function WorkflowDesignerPage() {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          {isDraftVersion ? (
+                          {isDraftVersion || !v.publishedAt ? (
                             <span className="text-muted-foreground italic text-xs">—</span>
                           ) : (
-                            formatDateTime(v.publishedAt!)
+                            formatDateTime(v.publishedAt)
                           )}
                         </td>
                       </tr>
