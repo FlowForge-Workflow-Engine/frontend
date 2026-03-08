@@ -967,10 +967,10 @@ export default function WorkflowDesignerPage() {
                         <td className="px-4 py-3">{snapshotName}</td>
                         <td className="px-4 py-3 text-muted-foreground max-w-[200px] truncate">{snapshotDesc}</td>
                         <td className="px-4 py-3">
-                          {isDraftVersion ? (
+                          {isDraftVersion || !v.publishedBy ? (
                             <span className="text-muted-foreground italic text-xs">Draft</span>
-                          ) : user ? (
-                            <span className="text-xs">{user.firstName} {user.lastName}</span>
+                          ) : versionUsers[v.publishedBy] ? (
+                            <span className="text-xs">{versionUsers[v.publishedBy].firstName} {versionUsers[v.publishedBy].lastName}</span>
                           ) : (
                             <span className="text-xs text-muted-foreground">Loading…</span>
                           )}
