@@ -188,7 +188,7 @@ export default function UsersPage() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label>Last Name</Label>
+                    <Label>Last Name <span className="text-destructive">*</span></Label>
                     <Input {...register("lastName")} />
                     {errors.lastName && (
                       <p className="text-xs text-destructive">{String(errors.lastName.message)}</p>
