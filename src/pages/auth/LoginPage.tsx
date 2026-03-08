@@ -109,7 +109,7 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="tenantId">Tenant ID</Label>
+            <Label htmlFor="tenantId">Tenant ID <span className="text-destructive">*</span></Label>
             <Input id="tenantId" placeholder="Your company's Tenant ID (UUID)" {...register("tenantId")} />
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Info className="h-6 w-6" />
