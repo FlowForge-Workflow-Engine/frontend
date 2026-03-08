@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { toast } from "sonner";
 import { getErrorMessage } from "@/utils/error-messages";
 import { Check, ArrowLeft, Sparkles, Zap, Crown } from "lucide-react";
-import { decodeJwtPayload } from "@/utils/jwt";
+import { decodeJwt } from "@/utils/jwt";
 
 const plans = [
   {
@@ -88,7 +88,7 @@ export default function PricingPage() {
         setTokens(newAccess, newRefresh);
 
         // Update user info with new plan from refreshed JWT
-        const decoded = decodeJwtPayload(newAccess);
+        const decoded = decodeJwt(newAccess);
         if (decoded) {
           useAuthStore.getState().setSession(newAccess, newRefresh, {
             id: decoded.sub,
