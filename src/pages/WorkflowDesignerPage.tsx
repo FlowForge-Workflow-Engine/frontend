@@ -139,6 +139,7 @@ export default function WorkflowDesignerPage() {
   const [transFrom, setTransFrom] = useState("");
   const [transTo, setTransTo] = useState("");
   const [transComment, setTransComment] = useState(false);
+  const [transAllowedRoles, setTransAllowedRoles] = useState<string[]>([]);
 
   // Rules state
   const [expandedTransId, setExpandedTransId] = useState<string | null>(null);
