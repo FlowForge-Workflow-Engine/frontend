@@ -162,7 +162,7 @@ export default function RegisterTenantPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Email</Label>
+            <Label>Email <span className="text-destructive">*</span></Label>
             <Input type="email" {...register("email")} placeholder="you@company.com" />
             {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
           </div>
