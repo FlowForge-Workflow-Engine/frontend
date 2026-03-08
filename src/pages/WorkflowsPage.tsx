@@ -1,8 +1,8 @@
 /**
  * WorkflowsPage — List workflow definitions with search, filter, and create dialog.
  */
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -37,12 +37,21 @@ const createSchema = z.object({
 
 export default function WorkflowsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.roles.includes("Admin");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Auto-open create dialog when navigated with ?create=true
+  useEffect(() => {
+    if (searchParams.get("create") === "true") {
+      setDialogOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [page, setPage] = useState(1);
   const pageSize = 12;
 

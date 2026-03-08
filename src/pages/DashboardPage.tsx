@@ -113,7 +113,7 @@ export default function DashboardPage() {
         subtitle="Your FlowForge workspace at a glance"
         actions={
           <div className="flex gap-2">
-            <Button onClick={() => navigate("/workflows/new")} variant="outline" size="sm">
+            <Button onClick={() => navigate("/workflows?create=true")} variant="outline" size="sm">
               <Plus className="h-4 w-4 mr-1" /> New Workflow
             </Button>
             <Button onClick={() => navigate("/instances/new")} size="sm">
