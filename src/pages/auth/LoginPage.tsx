@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, getCsrfHeaders } from "@/lib/api-client";
 import { unwrap } from "@/lib/api-helpers";
 import { useAuthStore } from "@/stores/auth-store";
 import { decodeJwt } from "@/utils/jwt";
@@ -49,7 +49,10 @@ export default function LoginPage() {
   const loginMutation = useMutation({
     mutationFn: async (data: LoginForm) => {
       // Login
-      const loginRes = unwrap<LoginResponse>(await apiClient.post("/api/v1/auth/login", data));
+      const csrfHeaders = await getCsrfHeaders();
+      const loginRes = unwrap<LoginResponse>(
+        await apiClient.post("/api/v1/auth/login", data, { headers: csrfHeaders }),
+      );
 
       // Save tenantId for future logins
       localStorage.setItem("flowforge-tenantId", data.tenantId);

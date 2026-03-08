@@ -3,7 +3,7 @@
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, getCsrfHeaders } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth-store";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -68,7 +68,7 @@ const plans = [
 export default function PricingPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { user, accessToken, setTokens } = useAuthStore();
+  const { user, setTokens } = useAuthStore();
   const tenantId = user?.tenantId ?? "";
   const currentPlan = user?.plan?.toLowerCase() ?? "free";
 
@@ -81,7 +81,12 @@ export default function PricingPage() {
       // Refresh tokens to get updated plan in JWT
       try {
         const refreshToken = useAuthStore.getState().refreshToken;
-        const { data } = await apiClient.post("/api/v1/auth/refresh", { refreshToken });
+        const csrfHeaders = await getCsrfHeaders();
+        const { data } = await apiClient.post(
+          "/api/v1/auth/refresh",
+          { refreshToken },
+          { headers: csrfHeaders },
+        );
         const newAccess = data.data?.accessToken ?? data.accessToken;
         const newRefresh = data.data?.refreshToken ?? data.refreshToken;
         setTokens(newAccess, newRefresh);

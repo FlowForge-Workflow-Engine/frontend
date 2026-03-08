@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, getCsrfHeaders } from "@/lib/api-client";
 import { unwrap } from "@/lib/api-helpers";
 import { useAuthStore } from "@/stores/auth-store";
 import { decodeJwt } from "@/utils/jwt";
@@ -92,7 +92,10 @@ export default function RegisterTenantPage() {
   const mutation = useMutation({
     mutationFn: async (data: RegisterForm) => {
       const { confirmPassword, ...body } = data;
-      return unwrap<RegisterTenantResponse>(await apiClient.post("/api/v1/auth/register/tenant", body));
+      const csrfHeaders = await getCsrfHeaders();
+      return unwrap<RegisterTenantResponse>(
+        await apiClient.post("/api/v1/auth/register/tenant", body, { headers: csrfHeaders }),
+      );
     },
     onSuccess: (res) => {
       const jwt = decodeJwt(res.accessToken);
