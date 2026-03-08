@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
-import { apiClient, getCsrfHeaders } from "@/lib/api-client";
+import { apiClient } from "@/lib/api-client";
 import { unwrap } from "@/lib/api-helpers";
 import { useAuthStore } from "@/stores/auth-store";
 import { decodeJwt } from "@/utils/jwt";
@@ -50,10 +50,7 @@ export default function SelfRegisterPage() {
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
       const { confirmPassword, ...body } = data;
-      const csrfHeaders = await getCsrfHeaders();
-      return unwrap<RegisterUserResponse>(
-        await apiClient.post("/api/v1/auth/register", body, { headers: csrfHeaders }),
-      );
+      return unwrap<RegisterUserResponse>(await apiClient.post("/api/v1/auth/register", body));
     },
     onSuccess: (res) => {
       const jwt = decodeJwt(res.accessToken);

@@ -1,7 +1,7 @@
 /**
  * API Client — Axios instance with JWT interceptors and auto-refresh.
  */
-import axios from "axios";
+import axios, { AxiosHeaders } from "axios";
 import { useAuthStore } from "@/stores/auth-store";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
@@ -10,6 +10,8 @@ const defaultHeaders = {
   "Content-Type": "application/json",
   // "ngrok-skip-browser-warning": "true",
 };
+
+const CSRF_PROTECTED_METHODS = new Set(["post", "put", "patch", "delete"]);
 
 const csrfClient = axios.create({
   baseURL: API_BASE_URL,
@@ -56,10 +58,22 @@ export const getCsrfHeaders = async () => {
   };
 };
 
-// Request interceptor — attach JWT token
-apiClient.interceptors.request.use((config) => {
+// Request interceptor — attach JWT token and CSRF token for mutating requests
+apiClient.interceptors.request.use(async (config) => {
+  const headers = AxiosHeaders.from(config.headers);
   const token = useAuthStore.getState().accessToken;
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const method = (config.method ?? "get").toLowerCase();
+  if (CSRF_PROTECTED_METHODS.has(method) && !headers.has("X-CSRF-Token")) {
+    const csrfHeaders = await getCsrfHeaders();
+    headers.set("X-CSRF-Token", csrfHeaders["X-CSRF-Token"]);
+  }
+
+  config.headers = headers;
   return config;
 });
 
@@ -68,21 +82,27 @@ apiClient.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
-    if (error.response?.status === 401 && !original._retry) {
+
+    if (!original) {
+      return Promise.reject(error);
+    }
+
+    if (error.response?.status === 401 && !original._retry && original.url !== "/api/v1/auth/refresh") {
       original._retry = true;
+
       try {
         const refreshToken = useAuthStore.getState().refreshToken;
-        const csrfHeaders = await getCsrfHeaders();
-        const { data } = await apiClient.post(
-          "/api/v1/auth/refresh",
-          { refreshToken },
-          { headers: csrfHeaders },
-        );
+        const { data } = await apiClient.post("/api/v1/auth/refresh", { refreshToken });
+
         // Update tokens from the refresh response
         const newAccess = data.data?.accessToken ?? data.accessToken;
         const newRefresh = data.data?.refreshToken ?? data.refreshToken;
         useAuthStore.getState().setTokens(newAccess, newRefresh);
-        original.headers.Authorization = `Bearer ${newAccess}`;
+
+        const headers = AxiosHeaders.from(original.headers);
+        headers.set("Authorization", `Bearer ${newAccess}`);
+        original.headers = headers;
+
         return apiClient(original);
       } catch {
         useAuthStore.getState().logout();

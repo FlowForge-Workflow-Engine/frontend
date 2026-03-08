@@ -3,7 +3,7 @@
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { apiClient, getCsrfHeaders } from "@/lib/api-client";
+import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth-store";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -81,12 +81,7 @@ export default function PricingPage() {
       // Refresh tokens to get updated plan in JWT
       try {
         const refreshToken = useAuthStore.getState().refreshToken;
-        const csrfHeaders = await getCsrfHeaders();
-        const { data } = await apiClient.post(
-          "/api/v1/auth/refresh",
-          { refreshToken },
-          { headers: csrfHeaders },
-        );
+        const { data } = await apiClient.post("/api/v1/auth/refresh", { refreshToken });
         const newAccess = data.data?.accessToken ?? data.accessToken;
         const newRefresh = data.data?.refreshToken ?? data.refreshToken;
         setTokens(newAccess, newRefresh);
