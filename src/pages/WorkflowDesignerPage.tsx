@@ -1281,7 +1281,7 @@ export default function WorkflowDesignerPage() {
           <div className="space-y-5">
             {/* Rule Name */}
             <div className="space-y-2">
-              <Label>Rule Name</Label>
+              <Label>Rule Name <span className="text-destructive">*</span></Label>
               <Input
                 value={ruleName}
                 onChange={(e) => setRuleName(e.target.value)}
