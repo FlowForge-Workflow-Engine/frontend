@@ -99,7 +99,7 @@ export default function NotificationsPage() {
           <DialogContent>
             <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Template</DialogTitle></DialogHeader>
             <div className="space-y-4">
-              <div className="space-y-2"><Label>Event Trigger</Label>
+              <div className="space-y-2"><Label>Event Trigger <span className="text-destructive">*</span></Label>
                 <Select value={eventTrigger} onValueChange={setEventTrigger}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{EVENT_TRIGGERS.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
