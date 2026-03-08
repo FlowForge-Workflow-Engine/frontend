@@ -145,7 +145,7 @@ export default function RegisterTenantPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Company Name</Label>
+            <Label>Company Name <span className="text-destructive">*</span></Label>
             <Input {...register("tenantName")} placeholder="Acme Corporation" />
             {errors.tenantName && <p className="text-xs text-destructive">{errors.tenantName.message}</p>}
           </div>
