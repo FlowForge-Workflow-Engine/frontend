@@ -54,7 +54,7 @@ import type {
   TransitionRule,
   FormSchemaField,
   Role,
-  WorkflowVersion,
+  WorkflowVersionListResponse,
   RuleMetadata,
   CreateTransitionRuleRequest,
 } from "@/types/api";
@@ -114,7 +114,11 @@ interface ConditionRow {
 export default function WorkflowDesignerPage() {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
-  const store = useWorkflowDesignerStore();
+  const setDefinition = useWorkflowDesignerStore((state) => state.setDefinition);
+  const setStatesInStore = useWorkflowDesignerStore((state) => state.setStates);
+  const setTransitionsInStore = useWorkflowDesignerStore((state) => state.setTransitions);
+  const setFormSchemaInStore = useWorkflowDesignerStore((state) => state.setFormSchema);
+  const setRuleMetadataInStore = useWorkflowDesignerStore((state) => state.setRuleMetadata);
 
   const [addStateOpen, setAddStateOpen] = useState(false);
   const [editStateOpen, setEditStateOpen] = useState(false);
@@ -200,20 +204,50 @@ export default function WorkflowDesignerPage() {
     queryFn: () =>
       apiClient
         .get(`/api/v1/workflow-definitions/${id}/versions`)
-        .then((r) => ({ items: r.data.data as WorkflowVersion[], count: r.data.count })),
+        .then((r) => unwrap<WorkflowVersionListResponse>(r)),
     enabled: !!id,
   });
 
   // Resolve publishedBy user IDs to names
   const versionUserIds = useMemo(() => {
     const ids = new Set<string>();
-    versionsData?.items?.forEach((v) => {
+    versionsData?.versions?.forEach((v) => {
       if (v.publishedBy) ids.add(v.publishedBy);
     });
     return Array.from(ids);
   }, [versionsData]);
 
-  const [versionUsers, setVersionUsers] = useState<Record<string, { firstName: string; lastName: string }>>({});
+  const versionRows = useMemo(() => {
+    const publishedVersions = [...(versionsData?.versions ?? [])].sort(
+      (a, b) => b.versionNumber - a.versionNumber,
+    );
+    const currentVersion = versionsData?.currentVersion;
+
+    const rows = publishedVersions.map((v) => ({
+      versionNumber: v.versionNumber,
+      isCurrent: v.versionNumber === currentVersion,
+      publishedBy: v.publishedBy,
+      publishedAt: v.publishedAt,
+    }));
+
+    if (currentVersion && !publishedVersions.some((v) => v.versionNumber === currentVersion)) {
+      rows.unshift({
+        versionNumber: currentVersion,
+        isCurrent: true,
+        publishedBy: null,
+        publishedAt: null,
+      });
+    }
+
+    return rows.sort((a, b) => {
+      if (a.isCurrent !== b.isCurrent) return a.isCurrent ? -1 : 1;
+      return b.versionNumber - a.versionNumber;
+    });
+  }, [versionsData]);
+
+  const [versionUsers, setVersionUsers] = useState<Record<string, { firstName: string; lastName: string }>>(
+    {},
+  );
 
   useEffect(() => {
     if (versionUserIds.length === 0) return;
@@ -221,19 +255,24 @@ export default function WorkflowDesignerPage() {
     if (missing.length === 0) return;
     Promise.all(
       missing.map((uid) =>
-        apiClient.get(`/api/v1/users/${uid}`).then((r) => {
-          const u = r.data.data ?? r.data;
-          return { id: uid, firstName: u.firstName, lastName: u.lastName };
-        }).catch(() => ({ id: uid, firstName: "Unknown", lastName: "" }))
-      )
+        apiClient
+          .get(`/api/v1/users/${uid}`)
+          .then((r) => {
+            const u = r.data.data ?? r.data;
+            return { id: uid, firstName: u.firstName, lastName: u.lastName };
+          })
+          .catch(() => ({ id: uid, firstName: "Unknown", lastName: "" })),
+      ),
     ).then((results) => {
       setVersionUsers((prev) => {
         const next = { ...prev };
-        results.forEach((r) => { next[r.id] = { firstName: r.firstName, lastName: r.lastName }; });
+        results.forEach((r) => {
+          next[r.id] = { firstName: r.firstName, lastName: r.lastName };
+        });
         return next;
       });
     });
-  }, [versionUserIds]);
+  }, [versionUserIds, versionUsers]);
 
   // Fetch roles for transition form
   const { data: rolesData } = useQuery({
@@ -260,20 +299,20 @@ export default function WorkflowDesignerPage() {
 
   // Update store
   useEffect(() => {
-    if (defData) store.setDefinition(defData);
-  }, [defData]);
+    if (defData) setDefinition(defData);
+  }, [defData, setDefinition]);
   useEffect(() => {
-    if (statesData) store.setStates(statesData.items);
-  }, [statesData]);
+    if (statesData) setStatesInStore(statesData.items);
+  }, [statesData, setStatesInStore]);
   useEffect(() => {
-    if (transData) store.setTransitions(transData.items);
-  }, [transData]);
+    if (transData) setTransitionsInStore(transData.items);
+  }, [transData, setTransitionsInStore]);
   useEffect(() => {
-    if (schemaData) store.setFormSchema(schemaData.fields || []);
-  }, [schemaData]);
+    if (schemaData) setFormSchemaInStore(schemaData.fields || []);
+  }, [schemaData, setFormSchemaInStore]);
   useEffect(() => {
-    if (ruleMetadata) store.setRuleMetadata(ruleMetadata);
-  }, [ruleMetadata]);
+    if (ruleMetadata) setRuleMetadataInStore(ruleMetadata);
+  }, [ruleMetadata, setRuleMetadataInStore]);
 
   const isDraft = defData?.status === "draft";
   const states = statesData?.items ?? [];
@@ -671,7 +710,7 @@ export default function WorkflowDesignerPage() {
         </TabsList>
 
         {/* Design Tab */}
-        <TabsContent value="design" className="flex-1 flex overflow-hidden m-0">
+        <TabsContent value="design" className="flex-1 flex overflow-hidden mt-2">
           {/* Left Panel */}
           <div className="w-80 border-r overflow-y-auto bg-card p-4 space-y-4">
             {/* States */}
@@ -932,7 +971,7 @@ export default function WorkflowDesignerPage() {
         {/* Versions Tab */}
         <TabsContent value="versions" className="flex-1 overflow-y-auto px-6 pt-3 pb-6 m-0">
           <h3 className="text-lg font-semibold mb-4">Versions</h3>
-          {(versionsData?.items?.length ?? 0) === 0 ? (
+          {versionRows.length === 0 ? (
             <p className="text-sm text-muted-foreground">No published versions yet.</p>
           ) : (
             <div className="rounded-lg border bg-card">
@@ -940,44 +979,37 @@ export default function WorkflowDesignerPage() {
                 <thead>
                   <tr className="border-b">
                     <th className="px-4 py-2 text-left font-medium text-muted-foreground">Version</th>
-                    <th className="px-4 py-2 text-left font-medium text-muted-foreground">Name</th>
-                    <th className="px-4 py-2 text-left font-medium text-muted-foreground">Description</th>
                     <th className="px-4 py-2 text-left font-medium text-muted-foreground">Published By</th>
                     <th className="px-4 py-2 text-left font-medium text-muted-foreground">Published At</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {versionsData?.items?.map((v) => {
-                    const snapshot = v.snapshot as Record<string, unknown> | null;
-                    const snapshotName = (snapshot?.name as string) || defData?.name || "—";
-                    const snapshotDesc = (snapshot?.description as string) || "—";
-                    const isCurrent = v.versionNumber === defData?.currentVersion;
-                    const isDraftVersion = !v.publishedBy && !v.publishedAt;
-                    
+                  {versionRows.map((v) => {
+                    const isCurrent = v.isCurrent;
+
                     return (
-                      <tr key={v.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                      <tr
+                        key={v.versionNumber}
+                        className="border-b last:border-0 hover:bg-muted/50 transition-colors"
+                      >
                         <td className="px-4 py-3 font-medium whitespace-nowrap">
-                          v{v.versionNumber}
-                          {isCurrent && (
-                            <Badge variant="default" className="text-[10px] ml-2">
-                              current
-                            </Badge>
-                          )}
+                          {v.versionNumber}
+                          {isCurrent ? <span className="ml-1 text-muted-foreground">(current)</span> : null}
                         </td>
-                        <td className="px-4 py-3">{snapshotName}</td>
-                        <td className="px-4 py-3 text-muted-foreground max-w-[200px] truncate">{snapshotDesc}</td>
                         <td className="px-4 py-3">
-                          {isDraftVersion || !v.publishedBy ? (
-                            <span className="text-muted-foreground italic text-xs">Draft</span>
+                          {!v.publishedBy ? (
+                            <span className="text-muted-foreground text-xs">--</span>
                           ) : versionUsers[v.publishedBy] ? (
-                            <span className="text-xs">{versionUsers[v.publishedBy].firstName} {versionUsers[v.publishedBy].lastName}</span>
+                            <span className="text-xs">
+                              {versionUsers[v.publishedBy].firstName} {versionUsers[v.publishedBy].lastName}
+                            </span>
                           ) : (
                             <span className="text-xs text-muted-foreground">Loading…</span>
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          {isDraftVersion || !v.publishedAt ? (
-                            <span className="text-muted-foreground italic text-xs">—</span>
+                          {!v.publishedAt ? (
+                            <span className="text-muted-foreground text-xs">--</span>
                           ) : (
                             formatDateTime(v.publishedAt)
                           )}

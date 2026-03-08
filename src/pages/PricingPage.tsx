@@ -30,8 +30,8 @@ const plans = [
     ],
   },
   {
-    key: "starter",
-    name: "Starter",
+    key: "pro",
+    name: "Pro",
     price: "$29",
     period: "/month",
     description: "For growing teams that need more power",
@@ -47,8 +47,8 @@ const plans = [
     ],
   },
   {
-    key: "professional",
-    name: "Professional",
+    key: "enterprise",
+    name: "Enterprise",
     price: "$99",
     period: "/month",
     description: "For organizations with complex workflows",
@@ -73,8 +73,7 @@ export default function PricingPage() {
   const currentPlan = user?.plan?.toLowerCase() ?? "free";
 
   const upgradeMutation = useMutation({
-    mutationFn: (plan: string) =>
-      apiClient.patch(`/api/v1/tenants/${tenantId}`, { plan }),
+    mutationFn: (plan: string) => apiClient.patch(`/api/v1/tenants/${tenantId}`, { plan }),
     onSuccess: async (_res, plan) => {
       // Invalidate tenant cache so SettingsPage reflects the change
       qc.invalidateQueries({ queryKey: ["tenants"] });
@@ -129,9 +128,7 @@ export default function PricingPage() {
             <Card
               key={plan.key}
               className={`relative flex flex-col transition-all ${
-                plan.popular
-                  ? "border-primary shadow-lg ring-2 ring-primary/20"
-                  : ""
+                plan.popular ? "border-primary shadow-lg ring-2 ring-primary/20" : ""
               } ${isCurrent ? "border-primary/60 bg-primary/5" : ""}`}
             >
               {plan.popular && (

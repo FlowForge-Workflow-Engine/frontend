@@ -205,9 +205,24 @@ export interface WorkflowVersion {
   workflowDefinitionId: string;
   versionNumber: number;
   snapshot: Record<string, unknown>;
+  isActive?: boolean;
   publishedBy: string | null;
   publishedAt: string | null;
   createdAt: string;
+  updatedAt?: string;
+}
+
+export interface WorkflowVersionSummary {
+  versionNumber: number;
+  isActive: boolean;
+  publishedBy: string | null;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkflowVersionListResponse extends WorkflowDefinition {
+  versions: WorkflowVersionSummary[];
 }
 
 // ─── Instances ───────────────────────────────────────────────────────────────
