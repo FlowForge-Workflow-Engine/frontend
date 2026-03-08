@@ -1173,7 +1173,7 @@ export default function WorkflowDesignerPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>To State</Label>
+              <Label>To State <span className="text-destructive">*</span></Label>
               <Select value={transTo} onValueChange={setTransTo}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select state" />
