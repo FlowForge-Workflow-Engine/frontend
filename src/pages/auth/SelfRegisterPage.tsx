@@ -93,7 +93,7 @@ export default function SelfRegisterPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>First Name</Label>
+              <Label>First Name <span className="text-destructive">*</span></Label>
               <Input {...register("firstName")} />
               {errors.firstName && <p className="text-xs text-destructive">{errors.firstName.message}</p>}
             </div>
