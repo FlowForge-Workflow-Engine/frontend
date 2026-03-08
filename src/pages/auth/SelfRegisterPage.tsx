@@ -105,7 +105,7 @@ export default function SelfRegisterPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Company Slug</Label>
+            <Label>Company Slug <span className="text-destructive">*</span></Label>
             <Input {...register("tenantSlug")} placeholder="acme-corp" />
             <p className="text-xs text-muted-foreground">Ask your admin for this value</p>
             {errors.tenantSlug && <p className="text-xs text-destructive">{errors.tenantSlug.message}</p>}
