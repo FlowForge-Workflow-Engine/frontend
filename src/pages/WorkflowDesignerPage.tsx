@@ -1000,7 +1000,7 @@ export default function WorkflowDesignerPage() {
                           {!v.publishedBy ? (
                             <span className="text-muted-foreground text-xs">--</span>
                           ) : versionUsers[v.publishedBy] ? (
-                            <span className="text-xs">
+                            <span>
                               {versionUsers[v.publishedBy].firstName} {versionUsers[v.publishedBy].lastName}
                             </span>
                           ) : (
