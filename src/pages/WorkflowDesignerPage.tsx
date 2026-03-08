@@ -894,7 +894,7 @@ export default function WorkflowDesignerPage() {
         </TabsContent>
 
         {/* Form Schema Tab */}
-        <TabsContent value="form-schema" className="flex-1 overflow-y-auto p-6 m-0">
+        <TabsContent value="form-schema" className="flex-1 overflow-y-auto px-6 pt-3 pb-6 m-0">
           <h3 className="text-lg font-semibold mb-2">Instance Form Schema</h3>
           <p className="text-sm text-muted-foreground mb-4">
             These fields are collected when creating a workflow instance.
@@ -930,7 +930,7 @@ export default function WorkflowDesignerPage() {
         </TabsContent>
 
         {/* Versions Tab */}
-        <TabsContent value="versions" className="flex-1 overflow-y-auto p-6 m-0">
+        <TabsContent value="versions" className="flex-1 overflow-y-auto px-6 pt-3 pb-6 m-0">
           <h3 className="text-lg font-semibold mb-4">Versions</h3>
           {(versionsData?.items?.length ?? 0) === 0 ? (
             <p className="text-sm text-muted-foreground">No published versions yet.</p>
@@ -953,7 +953,7 @@ export default function WorkflowDesignerPage() {
                     const snapshotDesc = (snapshot?.description as string) || "—";
                     const isCurrent = v.versionNumber === defData?.currentVersion;
                     const isDraftVersion = !v.publishedBy && !v.publishedAt;
-                    const user = v.publishedBy ? versionUsers[v.publishedBy] : null;
+                    
                     return (
                       <tr key={v.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
                         <td className="px-4 py-3 font-medium whitespace-nowrap">
@@ -967,19 +967,19 @@ export default function WorkflowDesignerPage() {
                         <td className="px-4 py-3">{snapshotName}</td>
                         <td className="px-4 py-3 text-muted-foreground max-w-[200px] truncate">{snapshotDesc}</td>
                         <td className="px-4 py-3">
-                          {isDraftVersion ? (
+                          {isDraftVersion || !v.publishedBy ? (
                             <span className="text-muted-foreground italic text-xs">Draft</span>
-                          ) : user ? (
-                            <span className="text-xs">{user.firstName} {user.lastName}</span>
+                          ) : versionUsers[v.publishedBy] ? (
+                            <span className="text-xs">{versionUsers[v.publishedBy].firstName} {versionUsers[v.publishedBy].lastName}</span>
                           ) : (
                             <span className="text-xs text-muted-foreground">Loading…</span>
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          {isDraftVersion ? (
+                          {isDraftVersion || !v.publishedAt ? (
                             <span className="text-muted-foreground italic text-xs">—</span>
                           ) : (
-                            formatDateTime(v.publishedAt!)
+                            formatDateTime(v.publishedAt)
                           )}
                         </td>
                       </tr>
