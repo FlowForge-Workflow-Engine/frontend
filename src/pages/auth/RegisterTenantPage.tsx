@@ -168,7 +168,7 @@ export default function RegisterTenantPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Password</Label>
+            <Label>Password <span className="text-destructive">*</span></Label>
             <Input type="password" {...register("password")} />
             {password && (
               <div className="space-y-1">
