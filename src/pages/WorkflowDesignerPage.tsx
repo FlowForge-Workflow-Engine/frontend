@@ -528,6 +528,7 @@ export default function WorkflowDesignerPage() {
     setTransFrom("");
     setTransTo("");
     setTransComment(false);
+    setTransAllowedRoles([]);
   };
   const resetRuleForm = () => {
     setRuleName("");
