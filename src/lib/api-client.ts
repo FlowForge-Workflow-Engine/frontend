@@ -8,7 +8,7 @@ export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "",
   headers: {
     "Content-Type": "application/json",
-    "ngrok-skip-browser-warning": "true",
+    // "ngrok-skip-browser-warning": "true",
   },
 });
 
@@ -31,7 +31,7 @@ apiClient.interceptors.response.use(
         const { data } = await apiClient.post(
           "/api/v1/auth/refresh",
           { refreshToken },
-          { headers: { "ngrok-skip-browser-warning": "true" } },
+          // { headers: { "ngrok-skip-browser-warning": "true" } },
         );
         // Update tokens from the refresh response
         const newAccess = data.data?.accessToken ?? data.accessToken;
