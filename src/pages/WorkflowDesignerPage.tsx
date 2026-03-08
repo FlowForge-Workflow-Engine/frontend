@@ -37,7 +37,9 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Badge } from "@/components/ui/badge";
 import {
   AlertTriangle,
+  Check,
   ChevronDown,
+  ChevronsUpDown,
   Edit,
   Info,
   Plus,
@@ -45,6 +47,7 @@ import {
   Trash2,
   ArrowRight,
   Settings2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/utils/error-messages";
