@@ -204,9 +204,9 @@ export interface WorkflowVersion {
   id: string;
   workflowDefinitionId: string;
   versionNumber: number;
-  snapshot: object;
-  publishedBy: string;
-  publishedAt: string;
+  snapshot: Record<string, unknown>;
+  publishedBy: string | null;
+  publishedAt: string | null;
   createdAt: string;
 }
 

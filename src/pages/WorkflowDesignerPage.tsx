@@ -204,6 +204,37 @@ export default function WorkflowDesignerPage() {
     enabled: !!id,
   });
 
+  // Resolve publishedBy user IDs to names
+  const versionUserIds = useMemo(() => {
+    const ids = new Set<string>();
+    versionsData?.items?.forEach((v) => {
+      if (v.publishedBy) ids.add(v.publishedBy);
+    });
+    return Array.from(ids);
+  }, [versionsData]);
+
+  const [versionUsers, setVersionUsers] = useState<Record<string, { firstName: string; lastName: string }>>({});
+
+  useEffect(() => {
+    if (versionUserIds.length === 0) return;
+    const missing = versionUserIds.filter((uid) => !versionUsers[uid]);
+    if (missing.length === 0) return;
+    Promise.all(
+      missing.map((uid) =>
+        apiClient.get(`/api/v1/users/${uid}`).then((r) => {
+          const u = r.data.data ?? r.data;
+          return { id: uid, firstName: u.firstName, lastName: u.lastName };
+        }).catch(() => ({ id: uid, firstName: "Unknown", lastName: "" }))
+      )
+    ).then((results) => {
+      setVersionUsers((prev) => {
+        const next = { ...prev };
+        results.forEach((r) => { next[r.id] = { firstName: r.firstName, lastName: r.lastName }; });
+        return next;
+      });
+    });
+  }, [versionUserIds]);
+
   // Fetch roles for transition form
   const { data: rolesData } = useQuery({
     queryKey: queryKeys.roles.list(),
@@ -863,7 +894,7 @@ export default function WorkflowDesignerPage() {
         </TabsContent>
 
         {/* Form Schema Tab */}
-        <TabsContent value="form-schema" className="flex-1 overflow-y-auto p-6">
+        <TabsContent value="form-schema" className="flex-1 overflow-y-auto p-6 m-0">
           <h3 className="text-lg font-semibold mb-2">Instance Form Schema</h3>
           <p className="text-sm text-muted-foreground mb-4">
             These fields are collected when creating a workflow instance.
@@ -899,7 +930,7 @@ export default function WorkflowDesignerPage() {
         </TabsContent>
 
         {/* Versions Tab */}
-        <TabsContent value="versions" className="flex-1 overflow-y-auto p-6">
+        <TabsContent value="versions" className="flex-1 overflow-y-auto p-6 m-0">
           <h3 className="text-lg font-semibold mb-4">Versions</h3>
           {(versionsData?.items?.length ?? 0) === 0 ? (
             <p className="text-sm text-muted-foreground">No published versions yet.</p>
@@ -909,30 +940,51 @@ export default function WorkflowDesignerPage() {
                 <thead>
                   <tr className="border-b">
                     <th className="px-4 py-2 text-left font-medium text-muted-foreground">Version</th>
+                    <th className="px-4 py-2 text-left font-medium text-muted-foreground">Name</th>
+                    <th className="px-4 py-2 text-left font-medium text-muted-foreground">Description</th>
                     <th className="px-4 py-2 text-left font-medium text-muted-foreground">Published By</th>
                     <th className="px-4 py-2 text-left font-medium text-muted-foreground">Published At</th>
-                    <th className="px-4 py-2 text-left font-medium text-muted-foreground">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {versionsData?.items?.map((v) => (
-                    <tr key={v.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
-                      <td className="px-4 py-3 font-medium">v{v.versionNumber}</td>
-                      <td className="px-4 py-3 font-mono text-xs">{v.publishedBy?.slice(0, 8)}…</td>
-                      <td className="px-4 py-3">{formatDateTime(v.publishedAt)}</td>
-                      <td className="px-4 py-3">
-                        {v.versionNumber === defData?.currentVersion ? (
-                          <Badge variant="default" className="text-[10px]">
-                            Active
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-[10px]">
-                            Previous
-                          </Badge>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {versionsData?.items?.map((v) => {
+                    const snapshot = v.snapshot as Record<string, unknown> | null;
+                    const snapshotName = (snapshot?.name as string) || defData?.name || "—";
+                    const snapshotDesc = (snapshot?.description as string) || "—";
+                    const isCurrent = v.versionNumber === defData?.currentVersion;
+                    const isDraftVersion = !v.publishedBy && !v.publishedAt;
+                    const user = v.publishedBy ? versionUsers[v.publishedBy] : null;
+                    return (
+                      <tr key={v.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                        <td className="px-4 py-3 font-medium whitespace-nowrap">
+                          v{v.versionNumber}
+                          {isCurrent && (
+                            <Badge variant="default" className="text-[10px] ml-2">
+                              current
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">{snapshotName}</td>
+                        <td className="px-4 py-3 text-muted-foreground max-w-[200px] truncate">{snapshotDesc}</td>
+                        <td className="px-4 py-3">
+                          {isDraftVersion ? (
+                            <span className="text-muted-foreground italic text-xs">Draft</span>
+                          ) : user ? (
+                            <span className="text-xs">{user.firstName} {user.lastName}</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Loading…</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {isDraftVersion ? (
+                            <span className="text-muted-foreground italic text-xs">—</span>
+                          ) : (
+                            formatDateTime(v.publishedAt!)
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
