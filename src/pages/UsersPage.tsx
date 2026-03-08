@@ -196,7 +196,7 @@ export default function UsersPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Email</Label>
+                  <Label>Email <span className="text-destructive">*</span></Label>
                   <Input type="email" {...register("email")} />
                   {errors.email && <p className="text-xs text-destructive">{String(errors.email.message)}</p>}
                 </div>
