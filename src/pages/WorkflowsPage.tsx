@@ -37,12 +37,21 @@ const createSchema = z.object({
 
 export default function WorkflowsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.roles.includes("Admin");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Auto-open create dialog when navigated with ?create=true
+  useEffect(() => {
+    if (searchParams.get("create") === "true") {
+      setDialogOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [page, setPage] = useState(1);
   const pageSize = 12;
 
