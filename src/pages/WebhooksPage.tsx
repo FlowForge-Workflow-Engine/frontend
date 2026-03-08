@@ -96,8 +96,8 @@ export default function WebhooksPage() {
           <DialogContent>
             <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Webhook</DialogTitle></DialogHeader>
             <div className="space-y-4">
-              <div className="space-y-2"><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
-              <div className="space-y-2"><Label>URL</Label><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." /></div>
+              <div className="space-y-2"><Label>Name <span className="text-destructive">*</span></Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
+              <div className="space-y-2"><Label>URL <span className="text-destructive">*</span></Label><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." /></div>
               <div className="space-y-2">
                 <Label>Secret</Label>
                 <div className="relative">
