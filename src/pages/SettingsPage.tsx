@@ -3,6 +3,7 @@
  */
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api-client";
 import { unwrap } from "@/lib/api-helpers";
 import { queryKeys } from "@/lib/query-keys";
@@ -16,10 +17,12 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/utils/error-messages";
+import { ArrowUpRight } from "lucide-react";
 import type { Tenant, TenantSettings, FeatureFlag } from "@/types/api";
 
 export default function SettingsPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const tenantId = useAuthStore((s) => s.user?.tenantId) ?? "";
 
   // Tenant info
@@ -91,9 +94,12 @@ export default function SettingsPage() {
               <Label>Tenant Name</Label>
               <Input value={tenantName} onChange={(e) => setTenantName(e.target.value)} />
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <Label>Plan</Label>
               <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary capitalize">{tenant?.plan || "free"}</span>
+              <Button variant="outline" size="sm" onClick={() => navigate("/settings/pricing")}>
+                Upgrade Plan <ArrowUpRight className="h-3.5 w-3.5 ml-1" />
+              </Button>
             </div>
             <Button size="sm" onClick={() => updateTenant.mutate()} disabled={updateTenant.isPending}>
               {updateTenant.isPending ? "Saving…" : "Save"}

@@ -89,18 +89,16 @@ export default function PricingPage() {
 
         // Update user info with new plan from refreshed JWT
         const decoded = decodeJwt(newAccess);
-        if (decoded) {
-          useAuthStore.getState().setSession(newAccess, newRefresh, {
-            id: decoded.sub,
-            email: decoded.email,
-            firstName: decoded.firstName,
-            tenantId: decoded.tenantId,
-            tenantSlug: decoded.tenantSlug,
-            roles: decoded.roles,
-            roleIds: decoded.roleIds,
-            plan: decoded.plan,
-          });
-        }
+        useAuthStore.getState().setSession(newAccess, newRefresh, {
+          id: decoded.sub,
+          email: decoded.email,
+          firstName: decoded.firstName,
+          tenantId: decoded.tenantId,
+          tenantSlug: decoded.tenantSlug,
+          roles: decoded.roles,
+          roleIds: decoded.roleIds,
+          plan: decoded.plan,
+        });
       } catch {
         // Token refresh failed — plan still updated server-side
       }
