@@ -93,38 +93,38 @@ export default function SelfRegisterPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>First Name</Label>
+              <Label>First Name <span className="text-destructive">*</span></Label>
               <Input {...register("firstName")} />
               {errors.firstName && <p className="text-xs text-destructive">{errors.firstName.message}</p>}
             </div>
             <div className="space-y-2">
-              <Label>Last Name</Label>
+              <Label>Last Name <span className="text-destructive">*</span></Label>
               <Input {...register("lastName")} />
               {errors.lastName && <p className="text-xs text-destructive">{errors.lastName.message}</p>}
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label>Company Slug</Label>
+            <Label>Company Slug <span className="text-destructive">*</span></Label>
             <Input {...register("tenantSlug")} placeholder="acme-corp" />
             <p className="text-xs text-muted-foreground">Ask your admin for this value</p>
             {errors.tenantSlug && <p className="text-xs text-destructive">{errors.tenantSlug.message}</p>}
           </div>
 
           <div className="space-y-2">
-            <Label>Email</Label>
+            <Label>Email <span className="text-destructive">*</span></Label>
             <Input type="email" {...register("email")} />
             {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
           </div>
 
           <div className="space-y-2">
-            <Label>Password</Label>
+            <Label>Password <span className="text-destructive">*</span></Label>
             <Input type="password" {...register("password")} />
             {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
           </div>
 
           <div className="space-y-2">
-            <Label>Confirm Password</Label>
+            <Label>Confirm Password <span className="text-destructive">*</span></Label>
             <Input type="password" {...register("confirmPassword")} />
             {errors.confirmPassword && (
               <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>

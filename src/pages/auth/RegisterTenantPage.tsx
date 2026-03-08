@@ -133,25 +133,25 @@ export default function RegisterTenantPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>First Name</Label>
+              <Label>First Name <span className="text-destructive">*</span></Label>
               <Input {...register("firstName")} />
               {errors.firstName && <p className="text-xs text-destructive">{errors.firstName.message}</p>}
             </div>
             <div className="space-y-2">
-              <Label>Last Name</Label>
+              <Label>Last Name <span className="text-destructive">*</span></Label>
               <Input {...register("lastName")} />
               {errors.lastName && <p className="text-xs text-destructive">{errors.lastName.message}</p>}
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label>Company Name</Label>
+            <Label>Company Name <span className="text-destructive">*</span></Label>
             <Input {...register("tenantName")} placeholder="Acme Corporation" />
             {errors.tenantName && <p className="text-xs text-destructive">{errors.tenantName.message}</p>}
           </div>
 
           <div className="space-y-2">
-            <Label>Company Slug</Label>
+            <Label>Company Slug <span className="text-destructive">*</span></Label>
             <Input {...register("tenantSlug")} placeholder="acme-corp" />
             {slug && (
               <p className="text-xs text-muted-foreground">
@@ -162,13 +162,13 @@ export default function RegisterTenantPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Email</Label>
+            <Label>Email <span className="text-destructive">*</span></Label>
             <Input type="email" {...register("email")} placeholder="you@company.com" />
             {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
           </div>
 
           <div className="space-y-2">
-            <Label>Password</Label>
+            <Label>Password <span className="text-destructive">*</span></Label>
             <Input type="password" {...register("password")} />
             {password && (
               <div className="space-y-1">
@@ -185,7 +185,7 @@ export default function RegisterTenantPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Confirm Password</Label>
+            <Label>Confirm Password <span className="text-destructive">*</span></Label>
             <Input type="password" {...register("confirmPassword")} />
             {errors.confirmPassword && (
               <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>

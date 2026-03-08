@@ -96,10 +96,10 @@ export default function WebhooksPage() {
           <DialogContent>
             <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Webhook</DialogTitle></DialogHeader>
             <div className="space-y-4">
-              <div className="space-y-2"><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
-              <div className="space-y-2"><Label>URL</Label><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." /></div>
+              <div className="space-y-2"><Label>Name <span className="text-destructive">*</span></Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
+              <div className="space-y-2"><Label>URL <span className="text-destructive">*</span></Label><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." /></div>
               <div className="space-y-2">
-                <Label>Secret</Label>
+                <Label>Secret <span className="text-destructive">*</span></Label>
                 <div className="relative">
                   <Input type={showSecret ? "text" : "password"} value={secret} onChange={(e) => setSecret(e.target.value)} />
                   <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2" onClick={() => setShowSecret(!showSecret)}>
@@ -108,7 +108,7 @@ export default function WebhooksPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Event Triggers</Label>
+                <Label>Event Triggers <span className="text-destructive">*</span></Label>
                 {EVENTS.map((ev) => (
                   <label key={ev} className="flex items-center gap-2 text-sm">
                     <Checkbox checked={events.includes(ev)} onCheckedChange={() => toggleEvent(ev)} />

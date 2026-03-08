@@ -103,13 +103,13 @@ export default function LoginPage() {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">Email <span className="text-destructive">*</span></Label>
             <Input id="email" type="email" placeholder="you@company.com" {...register("email")} />
             {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="tenantId">Tenant ID</Label>
+            <Label htmlFor="tenantId">Tenant ID <span className="text-destructive">*</span></Label>
             <Input id="tenantId" placeholder="Your company's Tenant ID (UUID)" {...register("tenantId")} />
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Info className="h-6 w-6" />
@@ -120,7 +120,7 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">Password <span className="text-destructive">*</span></Label>
             <Input id="password" type="password" placeholder="••••••••" {...register("password")} />
             {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
           </div>

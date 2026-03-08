@@ -181,14 +181,14 @@ export default function UsersPage() {
               <form onSubmit={handleSubmit((d) => createMut.mutate(d))} className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>First Name</Label>
+                    <Label>First Name <span className="text-destructive">*</span></Label>
                     <Input {...register("firstName")} />
                     {errors.firstName && (
                       <p className="text-xs text-destructive">{String(errors.firstName.message)}</p>
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label>Last Name</Label>
+                    <Label>Last Name <span className="text-destructive">*</span></Label>
                     <Input {...register("lastName")} />
                     {errors.lastName && (
                       <p className="text-xs text-destructive">{String(errors.lastName.message)}</p>
@@ -196,12 +196,12 @@ export default function UsersPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Email</Label>
+                  <Label>Email <span className="text-destructive">*</span></Label>
                   <Input type="email" {...register("email")} />
                   {errors.email && <p className="text-xs text-destructive">{String(errors.email.message)}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label>Password</Label>
+                  <Label>Password <span className="text-destructive">*</span></Label>
                   <Input type="password" {...register("password")} />
                   {errors.password && (
                     <p className="text-xs text-destructive">{String(errors.password.message)}</p>

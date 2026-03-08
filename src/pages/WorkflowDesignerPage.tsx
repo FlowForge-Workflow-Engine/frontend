@@ -1039,7 +1039,7 @@ export default function WorkflowDesignerPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Name</Label>
+              <Label>Name <span className="text-destructive">*</span></Label>
               <Input value={stateName} onChange={(e) => setStateName(e.target.value)} />
             </div>
             <div className="space-y-2">
@@ -1095,7 +1095,7 @@ export default function WorkflowDesignerPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Name</Label>
+              <Label>Name <span className="text-destructive">*</span></Label>
               <Input value={stateName} onChange={(e) => setStateName(e.target.value)} />
             </div>
             <div className="space-y-2">
@@ -1154,11 +1154,11 @@ export default function WorkflowDesignerPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Name</Label>
+              <Label>Name <span className="text-destructive">*</span></Label>
               <Input value={transName} onChange={(e) => setTransName(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>From State</Label>
+              <Label>From State <span className="text-destructive">*</span></Label>
               <Select value={transFrom} onValueChange={setTransFrom}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select state" />
@@ -1173,7 +1173,7 @@ export default function WorkflowDesignerPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>To State</Label>
+              <Label>To State <span className="text-destructive">*</span></Label>
               <Select value={transTo} onValueChange={setTransTo}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select state" />
@@ -1281,7 +1281,7 @@ export default function WorkflowDesignerPage() {
           <div className="space-y-5">
             {/* Rule Name */}
             <div className="space-y-2">
-              <Label>Rule Name</Label>
+              <Label>Rule Name <span className="text-destructive">*</span></Label>
               <Input
                 value={ruleName}
                 onChange={(e) => setRuleName(e.target.value)}
