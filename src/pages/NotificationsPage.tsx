@@ -105,7 +105,7 @@ export default function NotificationsPage() {
                   <SelectContent>{EVENT_TRIGGERS.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2"><Label>Channel</Label>
+              <div className="space-y-2"><Label>Channel <span className="text-destructive">*</span></Label>
                 <Select value={channel} onValueChange={(v) => setChannel(v as any)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent><SelectItem value="email">Email</SelectItem><SelectItem value="webhook">Webhook</SelectItem></SelectContent>
