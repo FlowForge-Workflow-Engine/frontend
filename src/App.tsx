@@ -29,6 +29,7 @@ import InstanceDetailPage from "@/pages/InstanceDetailPage";
 import UsersPage from "@/pages/UsersPage";
 import RolesPage from "@/pages/RolesPage";
 import SettingsPage from "@/pages/SettingsPage";
+import PricingPage from "@/pages/PricingPage";
 import NotificationsPage from "@/pages/NotificationsPage";
 import WebhooksPage from "@/pages/WebhooksPage";
 import NotFound from "@/pages/NotFound";
@@ -69,6 +70,7 @@ const App = () => (
                   <Route path="/users" element={<UsersPage />} />
                   <Route path="/roles" element={<RolesPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/settings/pricing" element={<PricingPage />} />
                   <Route path="/notifications" element={<NotificationsPage />} />
                   <Route path="/webhooks" element={<WebhooksPage />} />
                 </Route>
