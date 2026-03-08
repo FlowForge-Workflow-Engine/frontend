@@ -1192,25 +1192,62 @@ export default function WorkflowDesignerPage() {
             <div className="space-y-2">
               <Label>Allowed Roles</Label>
               <p className="text-xs text-muted-foreground">Only users with selected roles can perform this transition. Leave empty to allow all roles.</p>
-              <div className="space-y-2 max-h-40 overflow-y-auto rounded-md border border-border p-3">
-                {rolesData && rolesData.length > 0 ? (
-                  rolesData.map((role) => (
-                    <label key={role.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                      <Checkbox
-                        checked={transAllowedRoles.includes(role.id)}
-                        onCheckedChange={(checked) => {
-                          setTransAllowedRoles((prev) =>
-                            checked ? [...prev, role.id] : prev.filter((r) => r !== role.id)
+              {transAllowedRoles.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {transAllowedRoles.map((roleId) => {
+                    const role = rolesData?.find((r) => r.id === roleId);
+                    return (
+                      <Badge key={roleId} variant="secondary" className="gap-1 pr-1">
+                        {role?.name ?? roleId}
+                        <button
+                          type="button"
+                          className="ml-0.5 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:bg-muted"
+                          onClick={() => setTransAllowedRoles((prev) => prev.filter((r) => r !== roleId))}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    );
+                  })}
+                </div>
+              )}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" className="w-full justify-between text-sm font-normal">
+                    {transAllowedRoles.length > 0
+                      ? `${transAllowedRoles.length} role${transAllowedRoles.length > 1 ? "s" : ""} selected`
+                      : "Select roles…"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search roles…" />
+                    <CommandList>
+                      <CommandEmpty>No roles found.</CommandEmpty>
+                      <CommandGroup>
+                        {rolesData?.map((role) => {
+                          const isSelected = transAllowedRoles.includes(role.id);
+                          return (
+                            <CommandItem
+                              key={role.id}
+                              value={role.name}
+                              onSelect={() => {
+                                setTransAllowedRoles((prev) =>
+                                  isSelected ? prev.filter((r) => r !== role.id) : [...prev, role.id]
+                                );
+                              }}
+                            >
+                              <Check className={`mr-2 h-4 w-4 ${isSelected ? "opacity-100" : "opacity-0"}`} />
+                              {role.name}
+                            </CommandItem>
                           );
-                        }}
-                      />
-                      {role.name}
-                    </label>
-                  ))
-                ) : (
-                  <p className="text-xs text-muted-foreground">No roles available</p>
-                )}
-              </div>
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox checked={transComment} onCheckedChange={(c) => setTransComment(!!c)} /> Requires
