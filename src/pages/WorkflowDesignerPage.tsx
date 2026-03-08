@@ -953,7 +953,7 @@ export default function WorkflowDesignerPage() {
                     const snapshotDesc = (snapshot?.description as string) || "—";
                     const isCurrent = v.versionNumber === defData?.currentVersion;
                     const isDraftVersion = !v.publishedBy && !v.publishedAt;
-                    const user = v.publishedBy ? versionUsers[v.publishedBy] : null;
+                    
                     return (
                       <tr key={v.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
                         <td className="px-4 py-3 font-medium whitespace-nowrap">
