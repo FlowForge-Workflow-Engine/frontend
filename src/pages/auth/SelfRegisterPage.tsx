@@ -124,7 +124,7 @@ export default function SelfRegisterPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Confirm Password</Label>
+            <Label>Confirm Password <span className="text-destructive">*</span></Label>
             <Input type="password" {...register("confirmPassword")} />
             {errors.confirmPassword && (
               <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>
