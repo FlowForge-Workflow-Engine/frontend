@@ -139,6 +139,7 @@ export default function WorkflowDesignerPage() {
   const [transFrom, setTransFrom] = useState("");
   const [transTo, setTransTo] = useState("");
   const [transComment, setTransComment] = useState(false);
+  const [transAllowedRoles, setTransAllowedRoles] = useState<string[]>([]);
 
   // Rules state
   const [expandedTransId, setExpandedTransId] = useState<string | null>(null);
@@ -527,6 +528,7 @@ export default function WorkflowDesignerPage() {
     setTransFrom("");
     setTransTo("");
     setTransComment(false);
+    setTransAllowedRoles([]);
   };
   const resetRuleForm = () => {
     setRuleName("");
@@ -1182,6 +1184,29 @@ export default function WorkflowDesignerPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <Label>Allowed Roles</Label>
+              <p className="text-xs text-muted-foreground">Only users with selected roles can perform this transition. Leave empty to allow all roles.</p>
+              <div className="space-y-2 max-h-40 overflow-y-auto rounded-md border border-border p-3">
+                {rolesData && rolesData.length > 0 ? (
+                  rolesData.map((role) => (
+                    <label key={role.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Checkbox
+                        checked={transAllowedRoles.includes(role.id)}
+                        onCheckedChange={(checked) => {
+                          setTransAllowedRoles((prev) =>
+                            checked ? [...prev, role.id] : prev.filter((r) => r !== role.id)
+                          );
+                        }}
+                      />
+                      {role.name}
+                    </label>
+                  ))
+                ) : (
+                  <p className="text-xs text-muted-foreground">No roles available</p>
+                )}
+              </div>
+            </div>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox checked={transComment} onCheckedChange={(c) => setTransComment(!!c)} /> Requires
               Comment
@@ -1195,7 +1220,7 @@ export default function WorkflowDesignerPage() {
                   fromStateId: transFrom,
                   toStateId: transTo,
                   requiresComment: transComment,
-                  allowedRoleIds: [],
+                  allowedRoleIds: transAllowedRoles,
                 })
               }
             >
