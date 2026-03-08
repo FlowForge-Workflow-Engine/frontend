@@ -1158,7 +1158,7 @@ export default function WorkflowDesignerPage() {
               <Input value={transName} onChange={(e) => setTransName(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>From State</Label>
+              <Label>From State <span className="text-destructive">*</span></Label>
               <Select value={transFrom} onValueChange={setTransFrom}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select state" />
