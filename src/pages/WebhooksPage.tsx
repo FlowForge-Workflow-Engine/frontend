@@ -108,7 +108,7 @@ export default function WebhooksPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Event Triggers</Label>
+                <Label>Event Triggers <span className="text-destructive">*</span></Label>
                 {EVENTS.map((ev) => (
                   <label key={ev} className="flex items-center gap-2 text-sm">
                     <Checkbox checked={events.includes(ev)} onCheckedChange={() => toggleEvent(ev)} />

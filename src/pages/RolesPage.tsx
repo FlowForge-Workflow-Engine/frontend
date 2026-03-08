@@ -62,7 +62,7 @@ export default function RolesPage() {
             <DialogContent>
               <DialogHeader><DialogTitle>Create Role</DialogTitle></DialogHeader>
               <form onSubmit={handleSubmit((d) => createMut.mutate(d))} className="space-y-4">
-                <div className="space-y-2"><Label>Name</Label><Input {...register("name")} />{errors.name && <p className="text-xs text-destructive">{String(errors.name.message)}</p>}</div>
+                <div className="space-y-2"><Label>Name <span className="text-destructive">*</span></Label><Input {...register("name")} />{errors.name && <p className="text-xs text-destructive">{String(errors.name.message)}</p>}</div>
                 <div className="space-y-2"><Label>Description</Label><Textarea {...register("description")} /></div>
                 <p className="text-xs text-muted-foreground">System roles (Admin, Approver, Requestor, Viewer) are created automatically and cannot be deleted.</p>
                 <Button type="submit" className="w-full" disabled={createMut.isPending}>{createMut.isPending ? "Creating…" : "Create Role"}</Button>

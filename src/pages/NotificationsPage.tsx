@@ -112,7 +112,7 @@ export default function NotificationsPage() {
                 </Select>
               </div>
               {channel === "email" && <div className="space-y-2"><Label>Subject Template</Label><Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Workflow moved to {{toState}}" /></div>}
-              <div className="space-y-2"><Label>Body Template</Label><Textarea value={body} onChange={(e) => setBody(e.target.value)} className="font-mono text-sm" rows={5} /></div>
+              <div className="space-y-2"><Label>Body Template <span className="text-destructive">*</span></Label><Textarea value={body} onChange={(e) => setBody(e.target.value)} className="font-mono text-sm" rows={5} /></div>
               <div className="flex items-center gap-2"><Label>Active</Label><Switch checked={isActive} onCheckedChange={setIsActive} /></div>
               <Button className="w-full" disabled={createMut.isPending || !body} onClick={() => createMut.mutate({ eventTrigger, channel, subjectTemplate: channel === "email" ? subject : undefined, bodyTemplate: body, isActive })}>
                 {createMut.isPending ? "Saving…" : editing ? "Update" : "Create"}

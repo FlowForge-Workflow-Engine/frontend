@@ -115,7 +115,7 @@ export default function WorkflowsPage() {
               </DialogHeader>
               <form onSubmit={handleSubmit((d) => createMutation.mutate(d as any))} className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Name</Label>
+                  <Label>Name <span className="text-destructive">*</span></Label>
                   <Input {...register("name")} placeholder="My Workflow" />
                   {formErrors.name && (
                     <p className="text-xs text-destructive">{String(formErrors.name.message)}</p>
