@@ -124,7 +124,9 @@ export default function WorkflowsPage() {
               </DialogHeader>
               <form onSubmit={handleSubmit((d) => createMutation.mutate(d as any))} className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Name <span className="text-destructive">*</span></Label>
+                  <Label>
+                    Name <span className="text-destructive">*</span>
+                  </Label>
                   <Input {...register("name")} placeholder="My Workflow" />
                   {formErrors.name && (
                     <p className="text-xs text-destructive">{String(formErrors.name.message)}</p>
@@ -208,7 +210,7 @@ export default function WorkflowsPage() {
                     )}
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-muted-foreground">{formatDate(def.createdAt)}</span>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                         <Button
                           size="sm"
                           variant="outline"
@@ -226,7 +228,7 @@ export default function WorkflowsPage() {
                             confirmLabel="Delete"
                             onConfirm={() => deleteMutation.mutate(def.id)}
                             trigger={
-                              <Button size="sm" variant="ghost" onClick={(e) => e.stopPropagation()}>
+                              <Button size="sm" variant="ghost">
                                 <Trash2 className="h-4 w-4 text-destructive" />
                               </Button>
                             }
