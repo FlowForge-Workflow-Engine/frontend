@@ -146,7 +146,7 @@ frontend/
 
 ![Component Diagram](./docs/images/component-diagram.png)
 
-![Component Diagram](./docs/FRONTEND-COMPONENT-HIERARCHY-DIAGRAM.md)
+[Component Diagram](./docs/FRONTEND-COMPONENT-HIERARCHY-DIAGRAM.md)
 
 ## Prerequisites
 
